@@ -7,13 +7,13 @@ interface TicketCardProps {
 }
 
 const TicketCard: React.FC<TicketCardProps> = ({ participant }) => {
-  // Construction robuste de l'URL de validation
-  // On utilise window.location.origin + window.location.pathname pour être sûr du domaine sans doubles slashes
-  const baseUrl = window.location.origin + window.location.pathname;
-  const validationUrl = `${baseUrl.endsWith('/') ? baseUrl : baseUrl + '/'}#/ticket/${participant.numero_ticket}`;
+  // On utilise uniquement le domaine racine et le numéro du ticket pour le QR
+  // Le système de validation est désormais assez robuste pour extraire l'ID peu importe l'URL
+  const origin = window.location.origin + window.location.pathname;
+  const validationUrl = `${origin.split('#')[0]}#/ticket/${participant.numero_ticket}`;
   
-  // Utilisation d'un service de QR code fiable avec encodage strict et taille augmentée
-  const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent(validationUrl)}&color=002157&bgcolor=ffffff&qzone=2`;
+  // QR Code avec marges de sécurité (qzone) plus grandes pour faciliter la lecture sur écran
+  const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=350x350&data=${encodeURIComponent(validationUrl)}&color=002157&bgcolor=ffffff&qzone=4&ecc=H`;
 
   return (
     <div className="relative w-full max-w-[400px] mx-auto overflow-hidden rounded-[3rem] shadow-2xl bg-white text-assirou-navy border border-slate-100">
@@ -52,16 +52,16 @@ const TicketCard: React.FC<TicketCardProps> = ({ participant }) => {
           </div>
         </div>
 
-        <div className="flex items-center justify-between">
-          <div>
+        <div className="flex items-center justify-between gap-4">
+          <div className="flex-1">
             <p className="text-[9px] text-slate-400 uppercase font-black mb-1 tracking-widest">ID Ticket</p>
             <p className="text-xl font-black text-assirou-navy mono tracking-tighter">{participant.numero_ticket.split('-').pop()}</p>
-            <div className="mt-2 inline-flex items-center gap-2 px-3 py-1 bg-green-500/10 text-green-600 rounded-full text-[8px] font-black uppercase tracking-widest border border-green-500/10">
-               <i className="fas fa-check-circle"></i> Pass Validé
+            <div className="mt-2 inline-flex items-center gap-2 px-3 py-1 bg-green-500/10 text-green-600 rounded-full text-[8px] font-black uppercase tracking-widest border border-green-500/10 whitespace-nowrap">
+               <i className="fas fa-check-circle"></i> Pass Officiel
             </div>
           </div>
           
-          <div className="p-2 bg-white rounded-2xl shadow-xl border border-slate-100 flex items-center justify-center">
+          <div className="p-3 bg-white rounded-2xl shadow-xl border border-slate-100 flex items-center justify-center shrink-0">
             <img 
               src={qrUrl} 
               alt="Validation QR Code" 
