@@ -41,12 +41,10 @@ export const getParticipants = async (): Promise<Participant[]> => {
     if (error) throw error;
     remoteData = data || [];
   } catch (e) {
-    console.warn("Supabase inaccessible, lecture locale uniquement.");
+    console.warn("Supabase inaccessible, lecture locale.");
   }
 
   const localData = getFromLocal();
-  
-  // Fusion intelligente : On prend tout de Supabase et on ajoute ce qui n'est que local
   const combined = [...remoteData];
   localData.forEach(localP => {
     if (!combined.some(remoteP => remoteP.numero_ticket === localP.numero_ticket)) {
@@ -59,51 +57,62 @@ export const getParticipants = async (): Promise<Participant[]> => {
   );
 };
 
-export const getParticipantByTicket = async (ticketId: string): Promise<Participant | null> => {
-  try {
-    const { data } = await supabase
-      .from('participants')
-      .select('*')
-      .eq('numero_ticket', ticketId)
-      .maybeSingle();
-    
-    if (data) return data;
-  } catch (e) {}
-  
-  return getFromLocal().find(p => p.numero_ticket === ticketId) || null;
-};
-
-export const saveParticipant = async (participantData: Omit<Participant, 'id'>): Promise<boolean> => {
-  const tempId = Math.random().toString(36).substring(2, 15);
-  
+// Fix: Export the missing getParticipantByTicket function for TicketView.tsx
+export const getParticipantByTicket = async (ticketNumber: string): Promise<Participant | null> => {
   try {
     const { data, error } = await supabase
       .from('participants')
-      .insert([participantData])
-      .select();
+      .select('*')
+      .eq('numero_ticket', ticketNumber)
+      .maybeSingle();
     
     if (error) throw error;
+    if (data) return data as Participant;
+
+    // Check local storage if the record isn't found in Supabase (fallback/offline scenario)
+    const localData = getFromLocal();
+    return localData.find(p => p.numero_ticket === ticketNumber) || null;
+  } catch (e) {
+    console.warn("Error fetching participant from Supabase, checking local storage.");
+    const localData = getFromLocal();
+    return localData.find(p => p.numero_ticket === ticketNumber) || null;
+  }
+};
+
+export const saveParticipant = async (participantData: Omit<Participant, 'id'>): Promise<boolean> => {
+  try {
+    const { error } = await supabase
+      .from('participants')
+      .insert([participantData]);
+    
+    if (error) {
+        console.error("Supabase insert error:", error.message);
+        throw error;
+    }
     return true;
   } catch (e) {
-    console.warn("Echec Supabase, sauvegarde locale de secours.");
-    const localEntry: Participant = { ...participantData, id: tempId } as Participant;
-    saveToLocal(localEntry);
+    const tempId = Math.random().toString(36).substring(2, 15);
+    saveToLocal({ ...participantData, id: tempId } as Participant);
     return true; 
   }
 };
 
+export const subscribeToParticipants = (callback: () => void) => {
+  return supabase
+    .channel('participants_changes')
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'participants' }, () => {
+      callback();
+    })
+    .subscribe();
+};
+
 export const deleteParticipant = async (id: string): Promise<boolean> => {
   try {
-    // Si l'id est un UUID (Supabase)
-    if (id.length > 20) {
+    if (id && id.length > 20) {
       await supabase.from('participants').delete().eq('id', id);
     }
-    
-    // Toujours nettoyer le local aussi par sécurité
     const localData = getFromLocal();
-    const filtered = localData.filter((p: Participant) => p.id !== id);
-    localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(filtered));
-    
+    localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(localData.filter(p => p.id !== id)));
     return true;
   } catch (e) {
     return false;
@@ -112,53 +121,37 @@ export const deleteParticipant = async (id: string): Promise<boolean> => {
 
 export const generateTicketNumber = async (): Promise<string> => {
   try {
-    const { count } = await supabase
-      .from('participants')
-      .select('*', { count: 'exact', head: true });
-    
-    const nextCount = (count || 0) + getFromLocal().length + 1;
-    return `FORUM-SEC-2026-${nextCount.toString().padStart(4, '0')}`;
+    const { count } = await supabase.from('participants').select('*', { count: 'exact', head: true });
+    const total = (count || 0) + getFromLocal().length + 1;
+    return `FORUM-SEC-2026-${total.toString().padStart(4, '0')}`;
   } catch (e) {
-    return `FORUM-26-${Date.now().toString().slice(-4)}-${Math.floor(Math.random() * 1000)}`;
+    return `FORUM-26-${Date.now().toString().slice(-4)}`;
   }
 };
 
 export const isRegistrationActive = async (): Promise<boolean> => {
   try {
-    const { data } = await supabase
-      .from('settings')
-      .select('value')
-      .eq('key', 'registration_active')
-      .maybeSingle();
+    const { data } = await supabase.from('settings').select('value').eq('key', 'registration_active').maybeSingle();
     return !data || data.value === 'true';
-  } catch (e) {
-    return true;
-  }
+  } catch (e) { return true; }
 };
 
 export const setRegistrationStatus = async (active: boolean): Promise<void> => {
   try {
-    await supabase
-      .from('settings')
-      .upsert({ key: 'registration_active', value: active.toString() });
+    await supabase.from('settings').upsert({ key: 'registration_active', value: active.toString() });
   } catch (e) {}
 };
 
 export const exportParticipantsToCSV = async () => {
   const participants = await getParticipants();
   if (participants.length === 0) return;
-  const headers = ["Ticket", "Nom", "Email", "Tel", "Structure", "Type", "Formation", "Services"];
-  const rows = participants.map(p => [
-    p.numero_ticket, p.nom_complet, p.adresse_email, p.telephone,
-    p.organisation_entreprise || 'N/A', p.participation,
-    p.type_formation?.join(' / ') || 'Non',
-    p.services_interesses?.join(' / ') || 'Non'
-  ]);
+  const headers = ["Ticket", "Nom", "Email", "Tel", "Structure", "Type"];
+  const rows = participants.map(p => [p.numero_ticket, p.nom_complet, p.adresse_email, p.telephone, p.organisation_entreprise, p.participation]);
   const csvContent = [headers.join(","), ...rows.map(e => e.join(","))].join("\n");
   const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
   const url = URL.createObjectURL(blob);
   const link = document.createElement("a");
-  link.setAttribute("href", url);
-  link.setAttribute("download", `export_forum_2026.csv`);
+  link.href = url;
+  link.download = `participants_forum_2026.csv`;
   link.click();
 };
