@@ -1,0 +1,5 @@
+{
+  "name": "Forum Sécurité 2026 - Billetterie Intelligente",
+  "description": "Système de billetterie automatisé pour le Forum sur les métiers de la sécurité privée au Sénégal, incluant génération de tickets, simulation de webhooks et tableau de bord de gestion.",
+  "requestFramePermissions": []
+}
