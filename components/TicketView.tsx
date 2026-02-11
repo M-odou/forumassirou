@@ -30,19 +30,23 @@ const TicketView: React.FC = () => {
     
     setDownloading(true);
     try {
-      // 1. Capture le ticket en PNG haute résolution
-      // On utilise un pixelRatio de 2 ou 3 pour garantir la netteté sur le PDF
+      // On attend que les images soient bien décodées (QR code etc)
+      await new Promise(r => setTimeout(r, 500));
+
       const dataUrl = await toPng(ticketRef.current, {
         cacheBust: true,
         backgroundColor: '#ffffff',
         pixelRatio: 2,
+        // On s'assure que les styles sont appliqués
+        style: {
+          transform: 'scale(1)',
+          transformOrigin: 'top left'
+        }
       });
       
-      // 2. Calcul des dimensions
       const imgWidth = ticketRef.current.offsetWidth;
       const imgHeight = ticketRef.current.offsetHeight;
       
-      // 3. Création du PDF (format personnalisé basé sur la taille du ticket)
       const pdf = new jsPDF({
         orientation: 'portrait',
         unit: 'px',
@@ -51,13 +55,12 @@ const TicketView: React.FC = () => {
       
       pdf.addImage(dataUrl, 'PNG', 0, 0, imgWidth, imgHeight);
       
-      // 4. Téléchargement
       const fileName = `Ticket_Forum_2026_${participant.nom_complet.replace(/\s+/g, '_')}.pdf`;
       pdf.save(fileName);
       
     } catch (err) {
       console.error('Erreur PDF:', err);
-      alert("Une erreur est survenue lors de la création du PDF. Essayez l'option Imprimer.");
+      alert("Une erreur est survenue lors de la création du PDF. Si le problème persiste, utilisez l'option Imprimer.");
     } finally {
       setDownloading(false);
     }
@@ -94,7 +97,6 @@ const TicketView: React.FC = () => {
   return (
     <div className="min-h-screen py-12 md:py-20 px-4 flex flex-col items-center bg-slate-50">
       
-      {/* Statut de confirmation */}
       <div className="no-print mb-12 text-center animate-in fade-in slide-in-from-top-4 duration-1000">
         <div className="w-20 h-20 rounded-full bg-green-500 text-white flex items-center justify-center mx-auto mb-6 shadow-2xl shadow-green-500/20 border-4 border-white">
            <i className="fas fa-check text-3xl"></i>
@@ -103,13 +105,11 @@ const TicketView: React.FC = () => {
         <p className="text-slate-500 font-bold text-sm max-w-xs mx-auto">Votre badge électronique est prêt. Téléchargez le PDF pour le présenter le jour J.</p>
       </div>
 
-      {/* Zone du Ticket (Celle qui sera capturée) */}
       <div className="relative animate-in zoom-in-95 duration-700" ref={ticketRef}>
         <div className="absolute -inset-20 bg-assirou-gold/5 blur-[120px] rounded-full opacity-50 no-print"></div>
         <TicketCard participant={participant} />
       </div>
 
-      {/* Boutons d'action */}
       <div className="no-print mt-12 flex flex-col sm:flex-row gap-4 w-full max-w-md">
         <button 
           onClick={handleDownloadPDF}

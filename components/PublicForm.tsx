@@ -36,8 +36,12 @@ const PublicForm: React.FC = () => {
 
   useEffect(() => {
     const checkStatus = async () => {
-      const active = await isRegistrationActive();
-      setIsActive(active);
+      try {
+        const active = await isRegistrationActive();
+        setIsActive(active);
+      } catch (e) {
+        setIsActive(true);
+      }
     };
     checkStatus();
   }, []);
@@ -72,40 +76,54 @@ const PublicForm: React.FC = () => {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!isActive || !confirmed || step < 5) return;
+    
     setLoading(true);
-    setLoadingMsg('Génération de votre badge personnalisé...');
+    setLoadingMsg('Génération du ticket en cours...');
 
     try {
+      // 1. Génération du numéro de ticket
       const ticketNum = await generateTicketNumber();
       
-      const newParticipant = {
-        id: window.crypto?.randomUUID ? window.crypto.randomUUID() : Math.random().toString(36).substring(2),
-        ...formData,
+      // 2. Préparation des données complètes
+      const participantToSave = {
+        nom_complet: formData.nom_complet || '',
+        adresse_email: formData.adresse_email || '',
+        telephone: formData.telephone || '',
+        organisation_entreprise: formData.organisation_entreprise || '',
+        participation: formData.participation || 'Individuel',
+        avis_theme: formData.avis_theme || '',
+        canal_forum: formData.canal_forum || [],
+        canal_assirou: formData.canal_assirou || [],
+        souhait_formation: formData.souhait_formation || 'Non',
+        type_formation: formData.type_formation || [],
+        interet_services: formData.interet_services || 'Non',
+        services_interesses: formData.services_interesses || [],
         numero_ticket: ticketNum,
         date_inscription: new Date().toISOString(),
-        statut_email: 'pending'
-      } as Participant;
+        statut_email: 'pending' as const
+      };
 
-      const success = await saveParticipant(newParticipant);
+      // 3. Sauvegarde
+      await saveParticipant(participantToSave);
       
-      if (success) {
-        setLoadingMsg('AI : Rédaction de votre e-mail de confirmation...');
-        // On génère le contenu de l'email via Gemini
-        const emailContent = await generateEmailContent(newParticipant);
-        console.log("Email généré avec succès pour l'utilisateur:", emailContent);
-        
-        setLoadingMsg('Badge prêt ! Redirection...');
-        
-        setTimeout(() => {
-          navigate(`/ticket/${ticketNum}`);
-        }, 1500);
-      } else {
-        alert("Une erreur est survenue lors de l'enregistrement.");
-        setLoading(false);
+      // 4. Simulation Email AI (sans bloquer si échec)
+      setLoadingMsg('AI : Envoi de votre copie par mail...');
+      try {
+        await generateEmailContent(participantToSave as Participant);
+      } catch (mailError) {
+        console.warn("L'envoi d'email AI a échoué mais l'inscription est validée.");
       }
+      
+      setLoadingMsg('Inscription validée !');
+      
+      // 5. Redirection
+      setTimeout(() => {
+        navigate(`/ticket/${ticketNum}`);
+      }, 1000);
+
     } catch (error) {
-      console.error(error);
-      alert("Erreur serveur.");
+      console.error("Submission Error Details:", error);
+      alert("Désolé, une erreur technique est survenue. L'inscription n'a pas pu être finalisée.");
       setLoading(false);
     }
   };

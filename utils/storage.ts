@@ -2,21 +2,29 @@
 import { createClient } from '@supabase/supabase-js';
 import { Participant } from '../types';
 
-// Configuration Supabase optimisée pour le déploiement
+// Utilisation de variables d'environnement avec valeurs de secours pour le développement
 const supabaseUrl = process.env.SUPABASE_URL || 'https://s9pmyrnhvowevpk0mlt2.supabase.co';
 const supabaseAnonKey = process.env.SUPABASE_ANON_KEY || 'sb_publishable_s9PMYRnHvoweVPk0MLT2Lg_g6qWGroq';
 
 export const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
 const saveToLocal = (participant: Participant) => {
-  const localData = JSON.parse(localStorage.getItem('participants_fallback') || '[]');
-  localData.push(participant);
-  localStorage.setItem('participants_fallback', JSON.stringify(localData));
+  try {
+    const localData = JSON.parse(localStorage.getItem('participants_fallback') || '[]');
+    localData.push(participant);
+    localStorage.setItem('participants_fallback', JSON.stringify(localData));
+  } catch (e) {
+    console.error("Local storage error:", e);
+  }
 };
 
 const getFromLocal = (ticketId: string): Participant | null => {
-  const localData = JSON.parse(localStorage.getItem('participants_fallback') || '[]');
-  return localData.find((p: Participant) => p.numero_ticket === ticketId) || null;
+  try {
+    const localData = JSON.parse(localStorage.getItem('participants_fallback') || '[]');
+    return localData.find((p: Participant) => p.numero_ticket === ticketId) || null;
+  } catch (e) {
+    return null;
+  }
 };
 
 export const getParticipants = async (): Promise<Participant[]> => {
@@ -29,7 +37,7 @@ export const getParticipants = async (): Promise<Participant[]> => {
     if (error) throw error;
     return data as Participant[];
   } catch (e) {
-    console.error("Erreur lors de la récupération des participants:", e);
+    console.warn("Erreur Supabase, chargement local:", e);
     return JSON.parse(localStorage.getItem('participants_fallback') || '[]');
   }
 };
@@ -40,26 +48,37 @@ export const getParticipantByTicket = async (ticketId: string): Promise<Particip
       .from('participants')
       .select('*')
       .eq('numero_ticket', ticketId)
-      .single();
+      .maybeSingle(); // Utilisation de maybeSingle pour éviter les erreurs 406
     
     if (error) throw error;
-    return data as Participant;
+    return data as Participant || getFromLocal(ticketId);
   } catch (e) {
     return getFromLocal(ticketId);
   }
 };
 
-export const saveParticipant = async (participant: Participant): Promise<boolean> => {
+export const saveParticipant = async (participantData: Omit<Participant, 'id'>): Promise<boolean> => {
+  // Génération d'un ID de secours
+  const fallbackId = Math.random().toString(36).substring(2, 15);
+  
   try {
-    const { error } = await supabase
+    const { data, error } = await supabase
       .from('participants')
-      .insert([participant]);
+      .insert([{ ...participantData }])
+      .select();
     
-    if (error) throw error;
+    if (error) {
+      console.error("Supabase error detail:", error);
+      throw error;
+    }
     return true;
   } catch (e) {
-    console.error("Erreur Supabase, sauvegarde locale activée:", e);
-    saveToLocal(participant);
+    console.warn("Échec insertion Supabase, repli sur local:", e);
+    const localEntry: Participant = {
+      ...participantData,
+      id: fallbackId,
+    } as Participant;
+    saveToLocal(localEntry);
     return true;
   }
 };
@@ -74,8 +93,6 @@ export const deleteParticipant = async (id: string): Promise<boolean> => {
     if (error) throw error;
     return true;
   } catch (e) {
-    console.error("Erreur lors de la suppression:", e);
-    // Supprimer aussi du fallback local
     const localData = JSON.parse(localStorage.getItem('participants_fallback') || '[]');
     const filtered = localData.filter((p: Participant) => p.id !== id);
     localStorage.setItem('participants_fallback', JSON.stringify(filtered));
@@ -85,10 +102,11 @@ export const deleteParticipant = async (id: string): Promise<boolean> => {
 
 export const generateTicketNumber = async (): Promise<string> => {
   try {
-    const { count } = await supabase
+    const { count, error } = await supabase
       .from('participants')
       .select('*', { count: 'exact', head: true });
     
+    if (error) throw error;
     const nextCount = (count || 0) + 1;
     return `FORUM-SEC-2026-${nextCount.toString().padStart(4, '0')}`;
   } catch (e) {
@@ -104,7 +122,7 @@ export const isRegistrationActive = async (): Promise<boolean> => {
       .from('settings')
       .select('value')
       .eq('key', 'registration_active')
-      .single();
+      .maybeSingle();
     return !data || data.value === 'true';
   } catch (e) {
     return true;
