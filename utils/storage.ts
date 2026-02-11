@@ -48,54 +48,40 @@ export const getParticipants = async (): Promise<Participant[]> => {
 };
 
 /**
- * RECHERCHE ROBUSTE : 
- * Gère les IDs simples, les URLs complètes, et les erreurs de casse.
+ * RECHERCHE DE TICKET ULTRA-ROBUSTE
+ * Nettoie l'entrée pour ne garder que l'ID du ticket, même si c'est une URL complète scannée.
  */
 export const getParticipantByTicket = async (ticketInput: string): Promise<Participant | null> => {
   if (!ticketInput) return null;
   
-  // 1. Nettoyage profond : si l'input est une URL, on extrait juste la partie après le dernier slash
+  // 1. Extraction de l'ID pur : on prend ce qui est après le dernier '/' ou l'ID direct
   let cleanTicket = ticketInput.trim();
   if (cleanTicket.includes('/')) {
-    cleanTicket = cleanTicket.split('/').pop() || cleanTicket;
+    const parts = cleanTicket.split('/');
+    cleanTicket = parts[parts.length - 1];
   }
-  // Supprime les résidus éventuels de hash (#) ou de paramètres de requête (?)
-  cleanTicket = cleanTicket.split('#').pop() || cleanTicket;
-  cleanTicket = cleanTicket.split('?')[0];
-  cleanTicket = cleanTicket.trim().toUpperCase();
-
-  console.log("Tentative de validation pour le ticket:", cleanTicket);
+  // Nettoyage final (casse et espaces)
+  cleanTicket = cleanTicket.toUpperCase();
 
   try {
-    // 2. Recherche par correspondance exacte (Insensible à la casse via ilike)
+    // 2. Recherche Supabase (Exacte et Suffixe)
     const { data, error } = await supabase
       .from('participants')
       .select('*')
-      .ilike('numero_ticket', cleanTicket)
+      .ilike('numero_ticket', `%${cleanTicket}%`)
+      .limit(1)
       .maybeSingle();
       
     if (data) return data as Participant;
 
-    // 3. Recherche par suffixe (ex: juste 0001 au lieu de FORUM-SEC-2026-0001)
-    if (cleanTicket.length >= 4) {
-      const { data: suffixData } = await supabase
-        .from('participants')
-        .select('*')
-        .ilike('numero_ticket', `%${cleanTicket}`)
-        .maybeSingle();
-      
-      if (suffixData) return suffixData as Participant;
-    }
-
-    // 4. Fallback Local Storage
-    const local = getFromLocal().find(p => {
-      const pNum = p.numero_ticket.toUpperCase();
-      return pNum === cleanTicket || pNum.endsWith(cleanTicket) || cleanTicket.endsWith(pNum);
-    });
+    // 3. Fallback Local
+    const local = getFromLocal().find(p => 
+      p.numero_ticket.toUpperCase().includes(cleanTicket)
+    );
     
     return local || null;
   } catch (e) {
-    console.error("Erreur critique lors de la récupération du participant:", e);
+    console.error("Erreur validation ticket:", e);
     return null;
   }
 };
@@ -103,10 +89,7 @@ export const getParticipantByTicket = async (ticketInput: string): Promise<Parti
 export const saveParticipant = async (participantData: Omit<Participant, 'id'>): Promise<boolean> => {
   try {
     const { error } = await supabase.from('participants').insert([participantData]);
-    if (error) {
-      console.error("Supabase insert error:", error);
-      throw error;
-    }
+    if (error) throw error;
     return true;
   } catch (e) {
     const tempId = 'local_' + Math.random().toString(36).substring(2, 15);
@@ -130,10 +113,7 @@ export const deleteParticipant = async (id: string): Promise<boolean> => {
     const filtered = getFromLocal().filter(p => p.id !== id);
     localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(filtered));
     return true;
-  } catch (e) { 
-    console.error("Delete error:", e);
-    return false; 
-  }
+  } catch (e) { return false; }
 };
 
 export const generateTicketNumber = async (): Promise<string> => {
