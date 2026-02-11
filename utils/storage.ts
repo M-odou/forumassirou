@@ -16,18 +16,14 @@ const saveToLocal = (participant: Participant) => {
       localData.push(participant);
       localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(localData));
     }
-  } catch (e) {
-    console.error("Local storage error:", e);
-  }
+  } catch (e) { console.error("Local storage error:", e); }
 };
 
 const getFromLocal = (): Participant[] => {
   try {
     const data = localStorage.getItem(LOCAL_STORAGE_KEY);
     return data ? JSON.parse(data) : [];
-  } catch (e) {
-    return [];
-  }
+  } catch (e) { return []; }
 };
 
 export const getParticipants = async (): Promise<Participant[]> => {
@@ -37,12 +33,9 @@ export const getParticipants = async (): Promise<Participant[]> => {
       .from('participants')
       .select('*')
       .order('date_inscription', { ascending: false });
-    
     if (error) throw error;
     remoteData = data || [];
-  } catch (e) {
-    console.warn("Supabase inaccessible (Load failed ou CORS), lecture locale uniquement.");
-  }
+  } catch (e) { console.warn("Réseau instable, lecture locale."); }
 
   const localData = getFromLocal();
   const combined = [...remoteData];
@@ -51,44 +44,26 @@ export const getParticipants = async (): Promise<Participant[]> => {
       combined.push(localP);
     }
   });
-
-  return combined.sort((a, b) => 
-    new Date(b.date_inscription).getTime() - new Date(a.date_inscription).getTime()
-  );
+  return combined.sort((a, b) => new Date(b.date_inscription).getTime() - new Date(a.date_inscription).getTime());
 };
 
 export const getParticipantByTicket = async (ticketNumber: string): Promise<Participant | null> => {
   try {
-    const { data, error } = await supabase
-      .from('participants')
-      .select('*')
-      .eq('numero_ticket', ticketNumber)
-      .maybeSingle();
-    
+    const { data, error } = await supabase.from('participants').select('*').eq('numero_ticket', ticketNumber).maybeSingle();
     if (error) throw error;
     if (data) return data as Participant;
-
-    const localData = getFromLocal();
-    return localData.find(p => p.numero_ticket === ticketNumber) || null;
+    return getFromLocal().find(p => p.numero_ticket === ticketNumber) || null;
   } catch (e) {
-    const localData = getFromLocal();
-    return localData.find(p => p.numero_ticket === ticketNumber) || null;
+    return getFromLocal().find(p => p.numero_ticket === ticketNumber) || null;
   }
 };
 
 export const saveParticipant = async (participantData: Omit<Participant, 'id'>): Promise<boolean> => {
   try {
-    const { error } = await supabase
-      .from('participants')
-      .insert([participantData]);
-    
-    if (error) {
-        console.error("Supabase insert error details:", error.message);
-        throw error;
-    }
+    const { error } = await supabase.from('participants').insert([participantData]);
+    if (error) throw error;
     return true;
   } catch (e) {
-    console.warn("Échec insertion Supabase (TypeError: Load failed probable), sauvegarde locale temporaire.");
     const tempId = 'local_' + Math.random().toString(36).substring(2, 15);
     saveToLocal({ ...participantData, id: tempId } as Participant);
     return true; 
@@ -97,33 +72,19 @@ export const saveParticipant = async (participantData: Omit<Participant, 'id'>):
 
 export const subscribeToParticipants = (callback: () => void) => {
   try {
-    return supabase
-      .channel('participants_changes')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'participants' }, () => {
-        callback();
-      })
-      .subscribe();
-  } catch (e) {
-    return null;
-  }
+    return supabase.channel('any').on('postgres_changes', { event: '*', schema: 'public', table: 'participants' }, callback).subscribe();
+  } catch (e) { return null; }
 };
 
 export const deleteParticipant = async (id: string): Promise<boolean> => {
   try {
-    if (id && !id.startsWith('local_')) {
-      const { error } = await supabase.from('participants').delete().eq('id', id);
-      if (error) console.error("Supabase delete error:", error);
+    if (!id.startsWith('local_')) {
+      await supabase.from('participants').delete().eq('id', id);
     }
-    
-    const localData = getFromLocal();
-    const filtered = localData.filter(p => p.id !== id);
+    const filtered = getFromLocal().filter(p => p.id !== id);
     localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(filtered));
-    
     return true;
-  } catch (e) {
-    console.error("Erreur suppression:", e);
-    return false;
-  }
+  } catch (e) { return false; }
 };
 
 export const generateTicketNumber = async (): Promise<string> => {
@@ -131,9 +92,7 @@ export const generateTicketNumber = async (): Promise<string> => {
     const { count } = await supabase.from('participants').select('*', { count: 'exact', head: true });
     const total = (count || 0) + getFromLocal().length + 1;
     return `FORUM-SEC-2026-${total.toString().padStart(4, '0')}`;
-  } catch (e) {
-    return `FORUM-26-${Date.now().toString().slice(-4)}`;
-  }
+  } catch (e) { return `FORUM-26-${Date.now().toString().slice(-4)}`; }
 };
 
 export const isRegistrationActive = async (): Promise<boolean> => {
@@ -151,23 +110,14 @@ export const setRegistrationStatus = async (active: boolean): Promise<void> => {
 
 export const exportParticipantsToCSV = async () => {
   const participants = await getParticipants();
-  if (participants.length === 0) return;
-  const headers = ["Ticket", "Nom", "Email", "Tel", "Structure", "Type", "Formation", "Services"];
+  const headers = ["Ticket", "Nom", "Email", "Tel", "Structure", "Type", "Formation", "Services", "Source Forum", "Source Assirou"];
   const rows = participants.map(p => [
-    p.numero_ticket, 
-    p.nom_complet, 
-    p.adresse_email, 
-    p.telephone, 
-    p.organisation_entreprise, 
-    p.participation,
-    p.type_formation.join(' / '),
-    p.services_interesses.join(' / ')
+    p.numero_ticket, p.nom_complet, p.adresse_email, p.telephone, p.organisation_entreprise, p.participation,
+    p.type_formation.join('; '), p.services_interesses.join('; '), p.canal_forum.join('; '), p.canal_assirou.join('; ')
   ]);
-  const csvContent = [headers.join(","), ...rows.map(e => e.join(","))].join("\n");
-  const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-  const url = URL.createObjectURL(blob);
+  const csvContent = "data:text/csv;charset=utf-8," + [headers.join(","), ...rows.map(e => e.join(","))].join("\n");
   const link = document.createElement("a");
-  link.href = url;
-  link.download = `participants_forum_2026.csv`;
+  link.setAttribute("href", encodeURI(csvContent));
+  link.setAttribute("download", "participants_forum_2026.csv");
   link.click();
 };
