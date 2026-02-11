@@ -365,7 +365,7 @@ const PublicForm: React.FC = () => {
       </div>
 
       <footer className="mt-16 text-center">
-        <p className="text-[8px] font-black uppercase tracking-[0.6em] text-slate-400">ASSIRU SÉCURITÉ © 2026 • Leader du Gardiennage au Sénégal</p>
+        <p className="text-[8px] font-black uppercase tracking-[0.6em] text-slate-400">ASSIRU SÉCURITÉ © 2026 • kaarange bi dall xel</p>
       </footer>
     </div>
   );
