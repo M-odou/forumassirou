@@ -12,18 +12,16 @@ export default defineConfig({
   build: {
     outDir: 'dist',
     rollupOptions: {
-      // IMPORTANT : On indique à Rollup d'ignorer ces modules pendant le build
-      // car ils sont déjà gérés par l'importmap dans index.html via esm.sh
       external: [
         'react',
         'react-dom',
         'react-router-dom',
         '@google/genai',
         '@supabase/supabase-js',
-        'html-to-image'
+        'html-to-image',
+        'jspdf'
       ],
       output: {
-        // On force le format ESM pour que les imports natifs fonctionnent avec l'importmap
         format: 'es'
       }
     }
