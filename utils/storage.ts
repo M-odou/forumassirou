@@ -2,32 +2,36 @@
 import { createClient } from '@supabase/supabase-js';
 import { Participant } from '../types';
 
-// Utilisation de variables d'environnement avec valeurs de secours pour le développement
 const supabaseUrl = process.env.SUPABASE_URL || 'https://s9pmyrnhvowevpk0mlt2.supabase.co';
 const supabaseAnonKey = process.env.SUPABASE_ANON_KEY || 'sb_publishable_s9PMYRnHvoweVPk0MLT2Lg_g6qWGroq';
 
 export const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
+const LOCAL_STORAGE_KEY = 'participants_fallback';
+
 const saveToLocal = (participant: Participant) => {
   try {
-    const localData = JSON.parse(localStorage.getItem('participants_fallback') || '[]');
-    localData.push(participant);
-    localStorage.setItem('participants_fallback', JSON.stringify(localData));
+    const localData = JSON.parse(localStorage.getItem(LOCAL_STORAGE_KEY) || '[]');
+    // Éviter les doublons par numéro de ticket
+    if (!localData.find((p: Participant) => p.numero_ticket === participant.numero_ticket)) {
+      localData.push(participant);
+      localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(localData));
+    }
   } catch (e) {
     console.error("Local storage error:", e);
   }
 };
 
-const getFromLocal = (ticketId: string): Participant | null => {
+const getFromLocal = (): Participant[] => {
   try {
-    const localData = JSON.parse(localStorage.getItem('participants_fallback') || '[]');
-    return localData.find((p: Participant) => p.numero_ticket === ticketId) || null;
+    return JSON.parse(localStorage.getItem(LOCAL_STORAGE_KEY) || '[]');
   } catch (e) {
-    return null;
+    return [];
   }
 };
 
 export const getParticipants = async (): Promise<Participant[]> => {
+  let remoteData: Participant[] = [];
   try {
     const { data, error } = await supabase
       .from('participants')
@@ -35,11 +39,24 @@ export const getParticipants = async (): Promise<Participant[]> => {
       .order('date_inscription', { ascending: false });
     
     if (error) throw error;
-    return data as Participant[];
+    remoteData = data || [];
   } catch (e) {
-    console.warn("Erreur Supabase, chargement local:", e);
-    return JSON.parse(localStorage.getItem('participants_fallback') || '[]');
+    console.warn("Supabase fetch failed, using local only:", e);
   }
+
+  const localData = getFromLocal();
+  
+  // Fusionner et dédoublonner par numéro de ticket
+  const combined = [...remoteData];
+  localData.forEach(localP => {
+    if (!combined.find(remoteP => remoteP.numero_ticket === localP.numero_ticket)) {
+      combined.push(localP);
+    }
+  });
+
+  return combined.sort((a, b) => 
+    new Date(b.date_inscription).getTime() - new Date(a.date_inscription).getTime()
+  );
 };
 
 export const getParticipantByTicket = async (ticketId: string): Promise<Participant | null> => {
@@ -48,71 +65,71 @@ export const getParticipantByTicket = async (ticketId: string): Promise<Particip
       .from('participants')
       .select('*')
       .eq('numero_ticket', ticketId)
-      .maybeSingle(); // Utilisation de maybeSingle pour éviter les erreurs 406
+      .maybeSingle();
     
-    if (error) throw error;
-    return data as Participant || getFromLocal(ticketId);
+    if (data) return data;
   } catch (e) {
-    return getFromLocal(ticketId);
+    console.warn("Supabase single fetch failed:", e);
   }
+  
+  const local = getFromLocal();
+  return local.find(p => p.numero_ticket === ticketId) || null;
 };
 
 export const saveParticipant = async (participantData: Omit<Participant, 'id'>): Promise<boolean> => {
-  // Génération d'un ID de secours
-  const fallbackId = Math.random().toString(36).substring(2, 15);
+  const tempId = Math.random().toString(36).substring(2, 15);
   
   try {
-    const { data, error } = await supabase
+    // Tenter l'insertion Supabase sans ID (laisser Supabase le générer)
+    const { error } = await supabase
       .from('participants')
-      .insert([{ ...participantData }])
-      .select();
+      .insert([participantData]);
     
     if (error) {
-      console.error("Supabase error detail:", error);
+      console.error("Supabase Insertion Error:", error);
       throw error;
     }
     return true;
   } catch (e) {
-    console.warn("Échec insertion Supabase, repli sur local:", e);
+    console.warn("Sauvegarde sur Supabase impossible, utilisation du stockage local:", e);
+    // Sauvegarder localement en cas d'échec
     const localEntry: Participant = {
       ...participantData,
-      id: fallbackId,
+      id: tempId,
     } as Participant;
     saveToLocal(localEntry);
-    return true;
+    return true; // On retourne true car l'inscription est persistée localement
   }
 };
 
 export const deleteParticipant = async (id: string): Promise<boolean> => {
   try {
-    const { error } = await supabase
-      .from('participants')
-      .delete()
-      .eq('id', id);
+    // Supprimer de Supabase
+    await supabase.from('participants').delete().eq('id', id);
     
-    if (error) throw error;
+    // Supprimer du local
+    const localData = getFromLocal();
+    const filtered = localData.filter((p: Participant) => p.id !== id);
+    localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(filtered));
+    
     return true;
   } catch (e) {
-    const localData = JSON.parse(localStorage.getItem('participants_fallback') || '[]');
-    const filtered = localData.filter((p: Participant) => p.id !== id);
-    localStorage.setItem('participants_fallback', JSON.stringify(filtered));
-    return true;
+    console.error("Delete error:", e);
+    return false;
   }
 };
 
 export const generateTicketNumber = async (): Promise<string> => {
   try {
-    const { count, error } = await supabase
+    const { count } = await supabase
       .from('participants')
       .select('*', { count: 'exact', head: true });
     
-    if (error) throw error;
-    const nextCount = (count || 0) + 1;
+    const nextCount = (count || 0) + getFromLocal().length + 1;
     return `FORUM-SEC-2026-${nextCount.toString().padStart(4, '0')}`;
   } catch (e) {
     const timestamp = Date.now().toString().slice(-4);
-    const random = Math.floor(Math.random() * 1000).toString().padStart(3, '0');
-    return `FORUM-26-${timestamp}-${random}`;
+    return `FORUM-26-${timestamp}-${Math.floor(Math.random() * 1000)}`;
   }
 };
 
