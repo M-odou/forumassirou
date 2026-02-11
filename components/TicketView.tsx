@@ -30,12 +30,16 @@ const TicketView: React.FC = () => {
     
     setDownloading(true);
     try {
-      await new Promise(r => setTimeout(r, 500));
+      // Un court délai permet au QR Code de se charger complètement
+      await new Promise(r => setTimeout(r, 800));
 
       const dataUrl = await toPng(ticketRef.current, {
         cacheBust: true,
         backgroundColor: '#ffffff',
         pixelRatio: 2,
+        // On évite d'inclure les polices distantes si elles causent des erreurs CORS
+        // car elles sont déjà rendues par le navigateur dans le DOM cloné
+        skipFonts: false, 
         style: {
           transform: 'scale(1)',
           transformOrigin: 'top left'
@@ -56,8 +60,8 @@ const TicketView: React.FC = () => {
       pdf.save(fileName);
       
     } catch (err) {
-      console.error('Erreur PDF:', err);
-      alert("Erreur PDF. Utilisez l'option Imprimer.");
+      console.error('Erreur technique PDF (CORS/Network):', err);
+      alert("Le badge ne peut pas être généré automatiquement à cause de restrictions de sécurité de votre navigateur. Veuillez utiliser l'option 'Imprimer' et choisir 'Enregistrer au format PDF'.");
     } finally {
       setDownloading(false);
     }
@@ -128,7 +132,7 @@ const TicketView: React.FC = () => {
 
       <div className="no-print mt-16 text-center">
         <Link to="/" className="text-slate-400 font-black uppercase tracking-[0.3em] text-[9px] hover:text-assirou-navy">
-          Assirou Sécurité • 2026
+          Assirou Sécurité • 2026 • Kaarange bi dall xel
         </Link>
       </div>
     </div>

@@ -41,7 +41,7 @@ export const getParticipants = async (): Promise<Participant[]> => {
     if (error) throw error;
     remoteData = data || [];
   } catch (e) {
-    console.warn("Supabase inaccessible, lecture locale.");
+    console.warn("Supabase inaccessible (Load failed ou CORS), lecture locale uniquement.");
   }
 
   const localData = getFromLocal();
@@ -83,35 +83,38 @@ export const saveParticipant = async (participantData: Omit<Participant, 'id'>):
       .insert([participantData]);
     
     if (error) {
-        console.error("Supabase insert error:", error.message);
+        console.error("Supabase insert error details:", error.message);
         throw error;
     }
     return true;
   } catch (e) {
-    const tempId = Math.random().toString(36).substring(2, 15);
+    console.warn("Échec insertion Supabase (TypeError: Load failed probable), sauvegarde locale temporaire.");
+    const tempId = 'local_' + Math.random().toString(36).substring(2, 15);
     saveToLocal({ ...participantData, id: tempId } as Participant);
     return true; 
   }
 };
 
 export const subscribeToParticipants = (callback: () => void) => {
-  return supabase
-    .channel('participants_changes')
-    .on('postgres_changes', { event: '*', schema: 'public', table: 'participants' }, () => {
-      callback();
-    })
-    .subscribe();
+  try {
+    return supabase
+      .channel('participants_changes')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'participants' }, () => {
+        callback();
+      })
+      .subscribe();
+  } catch (e) {
+    return null;
+  }
 };
 
 export const deleteParticipant = async (id: string): Promise<boolean> => {
   try {
-    // 1. Suppression dans Supabase (priorité)
-    if (id && id.length > 20) {
+    if (id && !id.startsWith('local_')) {
       const { error } = await supabase.from('participants').delete().eq('id', id);
       if (error) console.error("Supabase delete error:", error);
     }
     
-    // 2. Nettoyage local systématique
     const localData = getFromLocal();
     const filtered = localData.filter(p => p.id !== id);
     localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(filtered));
@@ -149,8 +152,17 @@ export const setRegistrationStatus = async (active: boolean): Promise<void> => {
 export const exportParticipantsToCSV = async () => {
   const participants = await getParticipants();
   if (participants.length === 0) return;
-  const headers = ["Ticket", "Nom", "Email", "Tel", "Structure", "Type"];
-  const rows = participants.map(p => [p.numero_ticket, p.nom_complet, p.adresse_email, p.telephone, p.organisation_entreprise, p.participation]);
+  const headers = ["Ticket", "Nom", "Email", "Tel", "Structure", "Type", "Formation", "Services"];
+  const rows = participants.map(p => [
+    p.numero_ticket, 
+    p.nom_complet, 
+    p.adresse_email, 
+    p.telephone, 
+    p.organisation_entreprise, 
+    p.participation,
+    p.type_formation.join(' / '),
+    p.services_interesses.join(' / ')
+  ]);
   const csvContent = [headers.join(","), ...rows.map(e => e.join(","))].join("\n");
   const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
   const url = URL.createObjectURL(blob);
