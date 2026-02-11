@@ -27,41 +27,27 @@ const TicketView: React.FC = () => {
 
   const handleDownloadPDF = async () => {
     if (!ticketRef.current || !participant) return;
-    
     setDownloading(true);
     try {
-      // Un court délai permet au QR Code de se charger complètement
       await new Promise(r => setTimeout(r, 800));
-
       const dataUrl = await toPng(ticketRef.current, {
         cacheBust: true,
         backgroundColor: '#ffffff',
         pixelRatio: 2,
-        // On évite d'inclure les polices distantes si elles causent des erreurs CORS
-        // car elles sont déjà rendues par le navigateur dans le DOM cloné
-        skipFonts: false, 
-        style: {
-          transform: 'scale(1)',
-          transformOrigin: 'top left'
-        }
+        skipFonts: false,
       });
-      
       const imgWidth = ticketRef.current.offsetWidth;
       const imgHeight = ticketRef.current.offsetHeight;
-      
       const pdf = new jsPDF({
         orientation: 'portrait',
         unit: 'px',
         format: [imgWidth, imgHeight]
       });
-      
       pdf.addImage(dataUrl, 'PNG', 0, 0, imgWidth, imgHeight);
-      const fileName = `Badge_Forum_2026_${participant.nom_complet.replace(/\s+/g, '_')}.pdf`;
-      pdf.save(fileName);
-      
+      pdf.save(`Badge_2026_${participant.nom_complet.replace(/\s+/g, '_')}.pdf`);
     } catch (err) {
-      console.error('Erreur technique PDF (CORS/Network):', err);
-      alert("Le badge ne peut pas être généré automatiquement à cause de restrictions de sécurité de votre navigateur. Veuillez utiliser l'option 'Imprimer' et choisir 'Enregistrer au format PDF'.");
+      console.error('Erreur PDF:', err);
+      alert("Erreur de génération. Utilisez l'option Imprimer.");
     } finally {
       setDownloading(false);
     }
@@ -69,10 +55,10 @@ const TicketView: React.FC = () => {
 
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center p-6 bg-assirou-navy">
-        <div className="text-center space-y-4">
-          <i className="fas fa-shield-cat fa-bounce text-4xl text-assirou-gold"></i>
-          <p className="text-white text-[10px] font-black uppercase tracking-[0.4em]">Validation du badge...</p>
+      <div className="min-h-screen flex items-center justify-center p-6 bg-assirou-navy text-white">
+        <div className="text-center">
+          <i className="fas fa-shield-halved fa-spin text-4xl text-assirou-gold mb-4"></i>
+          <p className="text-[10px] font-black uppercase tracking-widest">Vérification du Badge...</p>
         </div>
       </div>
     );
@@ -80,60 +66,59 @@ const TicketView: React.FC = () => {
 
   if (!participant) {
     return (
-      <div className="min-h-screen flex items-center justify-center p-6 text-center bg-assirou-navy">
-        <div className="bg-white/5 backdrop-blur-xl p-12 rounded-[3rem] border border-white/10 max-w-sm">
-          <div className="w-16 h-16 bg-red-500/20 text-red-500 rounded-full flex items-center justify-center mx-auto mb-6">
-            <i className="fas fa-exclamation-triangle text-2xl"></i>
-          </div>
-          <h2 className="text-xl font-black text-white mb-2 uppercase tracking-tight">Badge Invalide</h2>
-          <p className="text-slate-400 mb-8 text-sm">Ce badge n'existe pas ou a été supprimé.</p>
-          <Link to="/" className="bg-assirou-gold text-assirou-navy px-8 py-3 rounded-2xl font-black uppercase tracking-widest text-[10px]">
-            Retour
-          </Link>
+      <div className="min-h-screen flex items-center justify-center p-6 bg-assirou-navy">
+        <div className="bg-white p-12 rounded-[3rem] text-center max-w-sm">
+          <i className="fas fa-circle-xmark text-5xl text-red-500 mb-6"></i>
+          <h2 className="text-xl font-black text-assirou-navy uppercase mb-2 tracking-tight">Badge Inexistant</h2>
+          <p className="text-slate-500 text-sm mb-8 font-medium">Ce ticket n'est plus valide ou a été supprimé.</p>
+          <Link to="/" className="inline-block bg-assirou-gold text-assirou-navy px-8 py-3 rounded-2xl font-black uppercase text-[10px] tracking-widest shadow-lg">Retour Accueil</Link>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen py-12 md:py-20 px-4 flex flex-col items-center bg-slate-50">
+    <div className="min-h-screen py-10 px-4 flex flex-col items-center bg-slate-50">
       
-      <div className="no-print mb-12 text-center animate-in fade-in slide-in-from-top-4 duration-1000">
-        <div className="w-20 h-20 rounded-full bg-green-500 text-white flex items-center justify-center mx-auto mb-6 shadow-2xl border-4 border-white">
-           <i className="fas fa-check text-3xl"></i>
+      {/* AFFICHAGE DE VALIDATION IMPÉRATIF (VISIBLE AU SCAN) */}
+      <div className="w-full max-w-md mb-8 animate-in slide-in-from-top duration-700">
+        <div className="bg-green-600 text-white rounded-[2rem] p-6 shadow-2xl flex items-center gap-6 border-4 border-white">
+          <div className="w-16 h-16 bg-white rounded-full flex items-center justify-center shrink-0">
+            <i className="fas fa-check text-green-600 text-3xl"></i>
+          </div>
+          <div>
+            <h2 className="text-2xl font-black uppercase tracking-tighter leading-none">Badge Valide</h2>
+            <p className="text-[10px] font-black uppercase opacity-80 tracking-widest mt-1">Accès autorisé - Forum 2026</p>
+          </div>
         </div>
-        <h1 className="text-3xl font-black text-assirou-navy uppercase tracking-tighter mb-2">Accès Autorisé</h1>
-        <p className="text-slate-500 font-bold text-sm">Badge validé pour le Forum Sécurité 2026 (10h-16h).</p>
       </div>
 
-      <div className="relative animate-in zoom-in-95 duration-700" ref={ticketRef}>
-        <div className="absolute -inset-20 bg-assirou-gold/5 blur-[120px] rounded-full opacity-50 no-print"></div>
+      <div className="relative animate-in zoom-in-95 duration-500" ref={ticketRef}>
+        <div className="absolute -inset-10 bg-assirou-gold/10 blur-[80px] rounded-full no-print"></div>
         <TicketCard participant={participant} />
       </div>
 
-      <div className="no-print mt-12 flex flex-col sm:flex-row gap-4 w-full max-w-md">
+      <div className="no-print mt-10 flex flex-col sm:flex-row gap-4 w-full max-w-[400px]">
         <button 
           onClick={handleDownloadPDF}
           disabled={downloading}
-          className="flex-1 bg-assirou-gold text-assirou-navy px-8 py-5 rounded-2xl font-black shadow-xl transition-all flex items-center justify-center gap-3 disabled:opacity-50"
+          className="flex-1 bg-assirou-gold text-assirou-navy px-6 py-4 rounded-2xl font-black shadow-xl flex items-center justify-center gap-2 disabled:opacity-50"
         >
-          <i className={`fas ${downloading ? 'fa-spinner fa-spin' : 'fa-file-pdf'} text-xl`}></i>
-          <span className="uppercase tracking-widest text-[11px]">Enregistrer le Badge</span>
+          <i className={`fas ${downloading ? 'fa-spinner fa-spin' : 'fa-file-pdf'}`}></i>
+          <span className="uppercase tracking-widest text-[10px]">Télécharger</span>
         </button>
         
         <button 
           onClick={() => window.print()}
-          className="flex-1 bg-assirou-navy text-white px-8 py-5 rounded-2xl font-black shadow-xl transition-all flex items-center justify-center gap-3"
+          className="flex-1 bg-assirou-navy text-white px-6 py-4 rounded-2xl font-black shadow-xl flex items-center justify-center gap-2"
         >
-          <i className="fas fa-print text-xl"></i>
-          <span className="uppercase tracking-widest text-[11px]">Imprimer</span>
+          <i className="fas fa-print"></i>
+          <span className="uppercase tracking-widest text-[10px]">Imprimer</span>
         </button>
       </div>
 
-      <div className="no-print mt-16 text-center">
-        <Link to="/" className="text-slate-400 font-black uppercase tracking-[0.3em] text-[9px] hover:text-assirou-navy">
-          Assirou Sécurité • 2026 • Kaarange bi dall xel
-        </Link>
+      <div className="no-print mt-12 text-center opacity-40">
+        <p className="text-[8px] font-black uppercase tracking-[0.4em] text-assirou-navy">Assirou Sécurité • Systèmes de contrôle 2026</p>
       </div>
     </div>
   );
