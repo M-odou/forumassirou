@@ -22,9 +22,12 @@ const TicketCard: React.FC<TicketCardProps> = ({ participant }) => {
             <span className="text-[10px] font-black uppercase tracking-[0.4em] text-assirou-gold">Assirou Sécurité</span>
           </div>
           
-          <h2 className="text-[16px] md:text-[18px] font-black leading-[1.1] uppercase tracking-tight text-white border-l-4 border-assirou-gold pl-4 py-1">
-            Deuxième Forum sur les Métiers de la Sécurité Privée au Sénégal
+          <h2 className="text-[14px] md:text-[16px] font-black leading-tight uppercase tracking-tight text-white border-l-4 border-assirou-gold pl-4 py-1">
+            DEUXIÈME FORUM SUR LES MÉTIERS DE LA SÉCURITÉ PRIVÉE AU SÉNÉGAL
           </h2>
+          <p className="text-[8px] font-bold text-assirou-gold/80 uppercase tracking-widest -mt-2">
+            LA SÉCURITÉ PRIVÉE DANS LES GRANDS ÉVÉNEMENTS SPORTIFS ET CULTURELS
+          </p>
           
           <div className="mt-4">
             <p className="text-slate-400 text-[9px] uppercase font-black tracking-widest mb-1">Pass Officiel</p>
@@ -47,10 +50,11 @@ const TicketCard: React.FC<TicketCardProps> = ({ participant }) => {
 
       {/* Info Section - White/Slate */}
       <div className="px-10 pb-10 pt-4 bg-slate-50">
-        <div className="grid grid-cols-2 gap-8 mb-10">
+        <div className="grid grid-cols-2 gap-4 mb-10">
           <div>
-            <p className="text-[9px] text-slate-400 uppercase font-black tracking-widest mb-1">Date</p>
-            <p className="text-sm font-black text-assirou-navy uppercase">05 Mars 2026</p>
+            <p className="text-[9px] text-slate-400 uppercase font-black tracking-widest mb-1">Date & Heure</p>
+            <p className="text-[11px] font-black text-assirou-navy uppercase">05 Mars 2026</p>
+            <p className="text-[10px] font-bold text-assirou-gold">12h00 - 17h00</p>
           </div>
           <div>
             <p className="text-[9px] text-slate-400 uppercase font-black tracking-widest mb-1">Lieu</p>
