@@ -120,20 +120,32 @@ const PublicForm: React.FC = () => {
         <div className="h-full bg-assirou-gold transition-all duration-500 ease-out" style={{ width: `${progress}%` }}></div>
       </div>
 
-      <div className="assirou-gradient w-full py-12 md:py-16 relative flex items-center justify-center overflow-hidden">
+      <div className="assirou-gradient w-full py-12 md:py-20 relative flex items-center justify-center overflow-hidden">
         <div className="absolute inset-0 opacity-10 bg-[url('https://www.transparenttextures.com/patterns/carbon-fibre.png')]"></div>
         <div className="relative z-10 text-center px-6 w-full max-w-4xl">
-          <div className="w-16 h-16 bg-white rounded-full flex items-center justify-center mx-auto mb-4 shadow-2xl border-4 border-assirou-gold">
-             <i className="fas fa-shield-cat text-assirou-navy text-2xl"></i>
+          <div className="w-20 h-20 bg-white rounded-full flex items-center justify-center mx-auto mb-6 shadow-2xl border-4 border-assirou-gold">
+             <i className="fas fa-shield-cat text-assirou-navy text-3xl"></i>
           </div>
-          <h1 className="text-white text-lg md:text-2xl font-black uppercase tracking-tight leading-tight mb-4 px-4 max-w-3xl mx-auto">
+          <h1 className="text-white text-xl md:text-3xl font-black uppercase tracking-tight leading-tight mb-8 px-4 max-w-3xl mx-auto">
             Deuxième Forum sur les Métiers de la Sécurité Privée au Sénégal
           </h1>
-          <p className="text-assirou-gold text-[10px] font-black uppercase tracking-[0.5em]">Forum Métiers Sécurité 2026</p>
+          
+          <div className="flex flex-wrap justify-center items-center gap-4">
+            <div className="flex items-center gap-3 bg-white/10 px-5 py-3 rounded-2xl border border-white/5 backdrop-blur-sm">
+              <i className="fas fa-calendar-alt text-assirou-gold text-sm"></i>
+              <span className="text-[11px] font-black text-white uppercase tracking-widest">05 Mars 2026</span>
+            </div>
+            <div className="flex items-center gap-3 bg-white/10 px-5 py-3 rounded-2xl border border-white/5 backdrop-blur-sm">
+              <i className="fas fa-map-marker-alt text-assirou-gold text-sm"></i>
+              <span className="text-[11px] font-black text-white uppercase tracking-widest">CSC Thiaroye sur Mer</span>
+            </div>
+          </div>
+          
+          <p className="mt-8 text-assirou-gold text-[9px] font-black uppercase tracking-[0.6em] opacity-60">Assirou Sécurité • Protection & Gardiennage</p>
         </div>
       </div>
 
-      <div className="max-w-[700px] mx-auto px-6 -mt-8 relative z-20">
+      <div className="max-w-[700px] mx-auto px-6 -mt-10 relative z-20">
         <div className="bg-white rounded-[2.5rem] shadow-2xl p-8 md:p-12 border border-slate-100">
           
           <div className="mb-10 flex justify-between items-center">
