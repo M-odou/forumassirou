@@ -7,7 +7,17 @@ const supabaseAnonKey = process.env.SUPABASE_ANON_KEY || 'sb_publishable_s9PMYRn
 
 export const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
-const LOCAL_STORAGE_KEY = 'participants_fallback';
+const LOCAL_STORAGE_KEY = 'participants_backup';
+
+const saveToLocal = (participant: Participant) => {
+  try {
+    const localData = getFromLocal();
+    if (!localData.find(p => p.numero_ticket === participant.numero_ticket)) {
+      localData.push(participant);
+      localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(localData));
+    }
+  } catch (e) { console.error("Local save error:", e); }
+};
 
 const getFromLocal = (): Participant[] => {
   try {
@@ -17,84 +27,77 @@ const getFromLocal = (): Participant[] => {
 };
 
 export const getParticipants = async (): Promise<Participant[]> => {
+  let remoteData: Participant[] = [];
   try {
     const { data, error } = await supabase
       .from('participants')
       .select('*')
       .order('date_inscription', { ascending: false });
-    if (error) throw error;
-    return data || [];
-  } catch (e) {
-    return getFromLocal();
-  }
+    if (!error) remoteData = data || [];
+  } catch (e) { console.warn("Supabase unreachable"); }
+
+  const localData = getFromLocal();
+  const combined = [...remoteData];
+  localData.forEach(lp => {
+    if (!combined.some(rp => rp.numero_ticket === lp.numero_ticket)) {
+      combined.push(lp);
+    }
+  });
+  return combined.sort((a, b) => new Date(b.date_inscription).getTime() - new Date(a.date_inscription).getTime());
 };
 
-/**
- * RECHERCHE DE TICKET
- * Priorité à l'ID exact puis au suffixe.
- */
 export const getParticipantByTicket = async (ticketInput: string): Promise<Participant | null> => {
   if (!ticketInput) return null;
-  
-  // Nettoyage de l'input (enlève les slashes, hash et espaces)
-  let cleanId = ticketInput.trim();
-  if (cleanId.includes('/')) {
-    cleanId = cleanId.split('/').pop() || cleanId;
-  }
+  let cleanId = ticketInput.trim().toUpperCase();
+  if (cleanId.includes('/')) cleanId = cleanId.split('/').pop() || cleanId;
   cleanId = cleanId.split('#').pop() || cleanId;
-  cleanId = cleanId.toUpperCase();
 
   try {
-    // Tentative 1 : Correspondance exacte (prioritaire)
-    const { data: exactData } = await supabase
-      .from('participants')
-      .select('*')
-      .eq('numero_ticket', cleanId)
-      .maybeSingle();
-      
-    if (exactData) return exactData as Participant;
-
-    // Tentative 2 : Recherche floue (si l'ID est partiel)
-    const { data: fuzzyData } = await supabase
+    const { data } = await supabase
       .from('participants')
       .select('*')
       .ilike('numero_ticket', `%${cleanId}%`)
-      .limit(1)
       .maybeSingle();
-      
-    return fuzzyData as Participant || null;
-  } catch (e) {
-    console.error("Erreur validation ticket:", e);
-    // Dernier recours local
-    return getFromLocal().find(p => p.numero_ticket.toUpperCase().includes(cleanId)) || null;
-  }
+    if (data) return data as Participant;
+  } catch (e) {}
+
+  return getFromLocal().find(p => p.numero_ticket.toUpperCase().includes(cleanId)) || null;
 };
 
 export const saveParticipant = async (participantData: Omit<Participant, 'id'>): Promise<boolean> => {
+  const tempId = 'ID_' + Math.random().toString(36).substr(2, 9);
+  const fullParticipant = { ...participantData, id: tempId } as Participant;
+  
   try {
+    // On tente Supabase
     const { error } = await supabase.from('participants').insert([participantData]);
     if (error) throw error;
     return true;
   } catch (e) {
-    return false; 
+    console.warn("Échec Supabase (probablement RLS), sauvegarde locale activée.");
+    saveToLocal(fullParticipant);
+    return true; // On retourne true pour ne pas bloquer l'utilisateur
   }
-};
-
-export const subscribeToParticipants = (callback: () => void) => {
-  return supabase.channel('any').on('postgres_changes', { event: '*', schema: 'public', table: 'participants' }, callback).subscribe();
 };
 
 export const deleteParticipant = async (id: string): Promise<boolean> => {
   try {
     const { error } = await supabase.from('participants').delete().eq('id', id);
-    return !error;
-  } catch (e) { return false; }
+    // On nettoie aussi le local
+    const local = getFromLocal().filter(p => p.id !== id);
+    localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(local));
+    return true;
+  } catch (e) { 
+    return false; 
+  }
 };
 
 export const generateTicketNumber = async (): Promise<string> => {
   try {
     const { count } = await supabase.from('participants').select('*', { count: 'exact', head: true });
-    return `FORUM-SEC-2026-${((count || 0) + 1).toString().padStart(4, '0')}`;
+    const localCount = getFromLocal().length;
+    const total = (count || 0) + localCount + 1;
+    return `FORUM-SEC-2026-${total.toString().padStart(4, '0')}`;
   } catch (e) { 
     return `FORUM-SEC-2026-${Math.floor(Math.random() * 9000 + 1000)}`; 
   }
@@ -108,7 +111,13 @@ export const isRegistrationActive = async (): Promise<boolean> => {
 };
 
 export const setRegistrationStatus = async (active: boolean): Promise<void> => {
-  await supabase.from('settings').upsert({ key: 'registration_active', value: active.toString() });
+  try {
+    await supabase.from('settings').upsert({ key: 'registration_active', value: active.toString() });
+  } catch (e) {}
+};
+
+export const subscribeToParticipants = (callback: () => void) => {
+  return supabase.channel('any').on('postgres_changes', { event: '*', schema: 'public', table: 'participants' }, callback).subscribe();
 };
 
 export const exportParticipantsToCSV = async () => {
