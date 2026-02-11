@@ -7,9 +7,13 @@ interface TicketCardProps {
 }
 
 const TicketCard: React.FC<TicketCardProps> = ({ participant }) => {
-  // L'URL de validation est celle que le scanneur verra
-  const validationUrl = `${window.location.origin}/#/ticket/${participant.numero_ticket}`;
-  const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(validationUrl)}&color=002157&bgcolor=ffffff&qzone=1`;
+  // Construction robuste de l'URL de validation
+  // On utilise window.location.origin + window.location.pathname pour être sûr du domaine sans doubles slashes
+  const baseUrl = window.location.origin + window.location.pathname;
+  const validationUrl = `${baseUrl.endsWith('/') ? baseUrl : baseUrl + '/'}#/ticket/${participant.numero_ticket}`;
+  
+  // Utilisation d'un service de QR code fiable avec encodage strict et taille augmentée
+  const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent(validationUrl)}&color=002157&bgcolor=ffffff&qzone=2`;
 
   return (
     <div className="relative w-full max-w-[400px] mx-auto overflow-hidden rounded-[3rem] shadow-2xl bg-white text-assirou-navy border border-slate-100">
@@ -57,8 +61,13 @@ const TicketCard: React.FC<TicketCardProps> = ({ participant }) => {
             </div>
           </div>
           
-          <div className="p-2 bg-white rounded-2xl shadow-xl border border-slate-100">
-            <img src={qrUrl} alt="Validation QR Code" className="w-24 h-24" />
+          <div className="p-2 bg-white rounded-2xl shadow-xl border border-slate-100 flex items-center justify-center">
+            <img 
+              src={qrUrl} 
+              alt="Validation QR Code" 
+              className="w-24 h-24 sm:w-28 sm:h-28" 
+              loading="eager"
+            />
           </div>
         </div>
 

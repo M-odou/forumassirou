@@ -35,7 +35,7 @@ export const getParticipants = async (): Promise<Participant[]> => {
       .order('date_inscription', { ascending: false });
     if (error) throw error;
     remoteData = data || [];
-  } catch (e) { console.warn("Réseau instable, lecture locale."); }
+  } catch (e) { console.warn("Réseau instable ou erreur Supabase, lecture locale."); }
 
   const localData = getFromLocal();
   const combined = [...remoteData];
@@ -48,22 +48,59 @@ export const getParticipants = async (): Promise<Participant[]> => {
 };
 
 export const getParticipantByTicket = async (ticketNumber: string): Promise<Participant | null> => {
+  if (!ticketNumber) return null;
+  
+  const cleanTicket = ticketNumber.trim().toUpperCase();
+  
   try {
-    const { data, error } = await supabase.from('participants').select('*').eq('numero_ticket', ticketNumber).maybeSingle();
-    if (error) throw error;
-    if (data) return data as Participant;
-    return getFromLocal().find(p => p.numero_ticket === ticketNumber) || null;
+    // 1. Tentative de recherche exacte dans Supabase
+    const { data, error } = await supabase
+      .from('participants')
+      .select('*')
+      .eq('numero_ticket', cleanTicket)
+      .maybeSingle();
+      
+    if (error) {
+      console.error("Supabase query error:", error);
+    } else if (data) {
+      return data as Participant;
+    }
+
+    // 2. Si non trouvé, tentative de recherche par suffixe (au cas où le préfixe a changé)
+    const ticketSuffix = cleanTicket.split('-').pop();
+    if (ticketSuffix && ticketSuffix.length >= 4) {
+      const { data: partialData } = await supabase
+        .from('participants')
+        .select('*')
+        .ilike('numero_ticket', `%${ticketSuffix}`)
+        .maybeSingle();
+      
+      if (partialData) return partialData as Participant;
+    }
+
+    // 3. Fallback sur le local storage (si sur le même appareil)
+    const local = getFromLocal().find(p => 
+      p.numero_ticket.toUpperCase() === cleanTicket || 
+      (ticketSuffix && p.numero_ticket.endsWith(ticketSuffix))
+    );
+    
+    return local || null;
   } catch (e) {
-    return getFromLocal().find(p => p.numero_ticket === ticketNumber) || null;
+    console.error("Critical error in getParticipantByTicket:", e);
+    return getFromLocal().find(p => p.numero_ticket.toUpperCase() === cleanTicket) || null;
   }
 };
 
 export const saveParticipant = async (participantData: Omit<Participant, 'id'>): Promise<boolean> => {
   try {
     const { error } = await supabase.from('participants').insert([participantData]);
-    if (error) throw error;
+    if (error) {
+      console.error("Supabase insert error:", error);
+      throw error;
+    }
     return true;
   } catch (e) {
+    // Toujours sauvegarder localement en cas de problème réseau ou config
     const tempId = 'local_' + Math.random().toString(36).substring(2, 15);
     saveToLocal({ ...participantData, id: tempId } as Participant);
     return true; 
@@ -79,12 +116,16 @@ export const subscribeToParticipants = (callback: () => void) => {
 export const deleteParticipant = async (id: string): Promise<boolean> => {
   try {
     if (!id.startsWith('local_')) {
-      await supabase.from('participants').delete().eq('id', id);
+      const { error } = await supabase.from('participants').delete().eq('id', id);
+      if (error) throw error;
     }
     const filtered = getFromLocal().filter(p => p.id !== id);
     localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(filtered));
     return true;
-  } catch (e) { return false; }
+  } catch (e) { 
+    console.error("Delete error:", e);
+    return false; 
+  }
 };
 
 export const generateTicketNumber = async (): Promise<string> => {
@@ -92,7 +133,9 @@ export const generateTicketNumber = async (): Promise<string> => {
     const { count } = await supabase.from('participants').select('*', { count: 'exact', head: true });
     const total = (count || 0) + getFromLocal().length + 1;
     return `FORUM-SEC-2026-${total.toString().padStart(4, '0')}`;
-  } catch (e) { return `FORUM-26-${Date.now().toString().slice(-4)}`; }
+  } catch (e) { 
+    return `FORUM-SEC-2026-${Math.floor(Math.random() * 9000 + 1000)}`; 
+  }
 };
 
 export const isRegistrationActive = async (): Promise<boolean> => {
