@@ -74,7 +74,7 @@ const PublicForm: React.FC = () => {
     if (!isActive || !confirmed || step < 5) return;
     
     setLoading(true);
-    setLoadingMsg('Enregistrement de votre accès...');
+    setLoadingMsg('Génération de votre badge...');
 
     try {
       const ticketNum = await generateTicketNumber();
@@ -97,31 +97,25 @@ const PublicForm: React.FC = () => {
         statut_email: 'pending' as const
       };
 
-      // 1. Sauvegarde en base de données
       const saved = await saveParticipant(participantToSave);
       
       if (saved) {
-        // 2. Déclenchement de l'envoi d'email (Le Sel)
         setLoadingMsg('AI : Envoi de votre ticket par e-mail...');
         try {
-          // On n'attend pas forcément que l'email soit fini pour rediriger, 
-          // mais on lance le processus.
+          // Lancement asynchrone de l'envoi mail
           sendConfirmationEmail(participantToSave as Participant);
         } catch (mailError) {
-          console.error("Échec du déclenchement mail:", mailError);
+          console.error("Échec mail:", mailError);
         }
         
-        setLoadingMsg('Inscription réussie ! Redirection...');
-        
-        setTimeout(() => {
-          navigate(`/ticket/${ticketNum}`);
-        }, 1500);
+        setLoadingMsg('Badge généré avec succès !');
+        setTimeout(() => navigate(`/ticket/${ticketNum}`), 1000);
       } else {
         throw new Error("Erreur de sauvegarde");
       }
     } catch (error) {
       console.error("Submission Error:", error);
-      alert("Une erreur est survenue. Veuillez vérifier votre connexion.");
+      alert("Une erreur est survenue. Vérifiez votre connexion.");
       setLoading(false);
     }
   };
@@ -134,7 +128,7 @@ const PublicForm: React.FC = () => {
              <i className="fas fa-calendar-times text-3xl"></i>
            </div>
            <h2 className="text-2xl font-black mb-4 uppercase">Inscriptions Closes</h2>
-           <p className="text-slate-500 mb-8 font-medium">Les inscriptions pour le Forum 2026 sont désormais terminées.</p>
+           <p className="text-slate-500 mb-8 font-medium">Les inscriptions pour le Forum 2026 sont terminées.</p>
            <p className="text-xs font-black text-assirou-gold uppercase tracking-widest">Équipe Assirou Sécurité</p>
         </div>
       </div>
@@ -164,7 +158,7 @@ const PublicForm: React.FC = () => {
           <div className="flex flex-wrap justify-center items-center gap-3">
             <span className="bg-white/10 px-4 py-2 rounded-xl border border-white/5 backdrop-blur-sm text-[10px] font-black text-white uppercase tracking-widest">05 Mars 2026</span>
             <span className="bg-white/10 px-4 py-2 rounded-xl border border-white/5 backdrop-blur-sm text-[10px] font-black text-white uppercase tracking-widest">CSC Thiaroye sur Mer</span>
-            <span className="bg-assirou-gold/20 px-4 py-2 rounded-xl border border-assirou-gold/30 backdrop-blur-sm text-[10px] font-black text-assirou-gold uppercase tracking-widest">12h - 17h</span>
+            <span className="bg-assirou-gold/20 px-4 py-2 rounded-xl border border-assirou-gold/30 backdrop-blur-sm text-[10px] font-black text-assirou-gold uppercase tracking-widest">10h - 16h</span>
           </div>
         </div>
       </div>
@@ -201,10 +195,6 @@ const PublicForm: React.FC = () => {
                       <input required type="tel" placeholder="7x xxx xx xx" className="w-full p-4 bg-slate-50 border-2 border-transparent focus:border-assirou-gold focus:bg-white rounded-xl outline-none transition-all" value={formData.telephone} onChange={e => setFormData({...formData, telephone: e.target.value})} />
                     </div>
                   </div>
-                  <div className="space-y-1">
-                    <label className="text-[10px] font-black uppercase tracking-widest text-slate-400">Organisation / Entreprise</label>
-                    <input type="text" placeholder="Nom de votre structure (Optionnel)" className="w-full p-4 bg-slate-50 border-2 border-transparent focus:border-assirou-gold focus:bg-white rounded-xl outline-none transition-all" value={formData.organisation_entreprise} onChange={e => setFormData({...formData, organisation_entreprise: e.target.value})} />
-                  </div>
                 </div>
               </div>
             )}
@@ -225,9 +215,6 @@ const PublicForm: React.FC = () => {
                   </div>
                   <div className="space-y-2">
                     <label className="text-[10px] font-black uppercase tracking-widest text-slate-400">Votre avis sur le thème du Forum :</label>
-                    <p className="text-[11px] font-black text-assirou-gold uppercase italic mb-2 leading-tight">
-                      "LA SÉCURITÉ PRIVÉE DANS LES GRANDS ÉVÉNEMENTS SPORTIFS ET CULTURELS"
-                    </p>
                     <textarea placeholder="Partagez votre réflexion ou vos attentes concernant ce thème..." className="w-full p-4 bg-slate-50 border-2 border-transparent focus:border-assirou-gold focus:bg-white rounded-xl outline-none transition-all h-32 resize-none" value={formData.avis_theme} onChange={e => setFormData({...formData, avis_theme: e.target.value})} />
                   </div>
                 </div>
@@ -243,16 +230,6 @@ const PublicForm: React.FC = () => {
                     <div className="flex flex-wrap gap-2">
                       {CANAUX_FORUM.map(c => (
                         <button key={c} type="button" onClick={() => toggleSelection('canal_forum', c)} className={`px-4 py-2 rounded-full border-2 text-[10px] font-black transition-all ${formData.canal_forum?.includes(c) ? 'bg-assirou-gold border-assirou-gold text-white shadow-md' : 'bg-white border-slate-200 text-slate-400 hover:border-assirou-gold'}`}>
-                          {c}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                  <div className="space-y-4">
-                    <p className="text-[10px] font-black uppercase tracking-widest text-assirou-navy">Comment avez-vous connu ASSIROU SÉCURITÉ ?</p>
-                    <div className="flex flex-wrap gap-2">
-                      {CANAUX_ASSIROU.map(c => (
-                        <button key={c} type="button" onClick={() => toggleSelection('canal_assirou', c)} className={`px-4 py-2 rounded-full border-2 text-[10px] font-black transition-all ${formData.canal_assirou?.includes(c) ? 'bg-assirou-navy border-assirou-navy text-white shadow-md' : 'bg-white border-slate-200 text-slate-400 hover:border-assirou-navy'}`}>
                           {c}
                         </button>
                       ))}
@@ -277,43 +254,6 @@ const PublicForm: React.FC = () => {
                         ))}
                       </div>
                     </div>
-                    {formData.souhait_formation === 'Oui' && (
-                      <div className="pt-4 border-t border-slate-200 space-y-3">
-                        <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Sélectionnez la/les formation(s) :</p>
-                        <div className="flex flex-wrap gap-2">
-                          {FORMATIONS_LIST.map(f => (
-                            <button key={f} type="button" onClick={() => toggleSelection('type_formation', f)} className={`px-3 py-2 rounded-lg text-[9px] font-bold border ${formData.type_formation?.includes(f) ? 'bg-assirou-gold text-white border-assirou-gold' : 'bg-white text-slate-400 border-slate-200'}`}>
-                              {f}
-                            </button>
-                          ))}
-                        </div>
-                      </div>
-                    )}
-                  </div>
-
-                  <div className="p-6 bg-slate-50 rounded-3xl border-2 border-slate-100 space-y-4">
-                    <div className="flex justify-between items-center">
-                      <p className="font-black text-sm text-assirou-navy">Intéressé par nos services ?</p>
-                      <div className="flex gap-2">
-                        {['Oui', 'Non'].map(v => (
-                          <button key={v} type="button" onClick={() => handleYesNoChange('interet_services', v as any)} className={`px-6 py-2 rounded-xl text-[10px] font-black transition-all ${formData.interet_services === v ? 'bg-assirou-gold text-white shadow-lg' : 'bg-white text-slate-300 border border-slate-200'}`}>
-                            {v}
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-                    {formData.interet_services === 'Oui' && (
-                      <div className="pt-4 border-t border-slate-200 space-y-3">
-                        <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Services qui vous intéressent :</p>
-                        <div className="flex flex-wrap gap-2">
-                          {SERVICES_LIST.map(s => (
-                            <button key={s} type="button" onClick={() => toggleSelection('services_interesses', s)} className={`px-3 py-2 rounded-lg text-[9px] font-bold border ${formData.services_interesses?.includes(s) ? 'bg-assirou-navy text-white border-assirou-navy' : 'bg-white text-slate-400 border-slate-200'}`}>
-                              {s}
-                            </button>
-                          ))}
-                        </div>
-                      </div>
-                    )}
                   </div>
                 </div>
               </div>
@@ -329,12 +269,8 @@ const PublicForm: React.FC = () => {
                       <span className="text-sm font-black text-assirou-navy">{formData.nom_complet}</span>
                    </div>
                    <div className="flex justify-between items-center border-b border-slate-200 pb-3">
-                      <span className="text-[10px] font-bold text-slate-400 uppercase">E-mail de réception</span>
-                      <span className="text-sm font-bold text-assirou-navy">{formData.adresse_email}</span>
-                   </div>
-                   <div className="flex justify-between items-center border-b border-slate-200 pb-3">
                       <span className="text-[10px] font-bold text-slate-400 uppercase">Horaire</span>
-                      <span className="text-sm font-bold text-slate-600">12h00 - 17h00</span>
+                      <span className="text-sm font-bold text-slate-600">10h00 - 16h00</span>
                    </div>
                 </div>
 
@@ -356,25 +292,25 @@ const PublicForm: React.FC = () => {
 
             <div className="flex flex-col sm:flex-row gap-4 pt-8 border-t border-slate-100">
               {step > 1 && (
-                <button disabled={loading} type="button" onClick={prevStep} className="px-8 py-4 rounded-xl font-black text-slate-400 bg-slate-50 hover:bg-slate-100 transition-all flex items-center justify-center gap-2 disabled:opacity-50">
+                <button disabled={loading} type="button" onClick={prevStep} className="px-8 py-4 rounded-xl font-black text-slate-400 bg-slate-50 hover:bg-slate-100 transition-all flex items-center justify-center gap-2">
                    <i className="fas fa-chevron-left text-[10px]"></i> Précédent
                 </button>
               )}
               
               {step < 5 ? (
-                <button type="button" onClick={nextStep} className="flex-1 px-8 py-4 rounded-xl font-black text-white bg-assirou-navy hover:bg-[#001a45] transition-all flex items-center justify-center gap-3 active:scale-95 shadow-lg shadow-navy-900/20">
+                <button type="button" onClick={nextStep} className="flex-1 px-8 py-4 rounded-xl font-black text-white bg-assirou-navy hover:bg-[#001a45] transition-all flex items-center justify-center gap-3 shadow-lg">
                    Continuer <i className="fas fa-chevron-right text-[10px] text-assirou-gold"></i>
                 </button>
               ) : (
                 confirmed && (
-                  <button disabled={loading} type="submit" className="flex-1 px-8 py-5 rounded-xl font-black text-white bg-assirou-gold hover:bg-[#b08e1e] transition-all shadow-xl flex items-center justify-center gap-4 text-lg animate-in zoom-in duration-300">
+                  <button disabled={loading} type="submit" className="flex-1 px-8 py-5 rounded-xl font-black text-white bg-assirou-gold hover:bg-[#b08e1e] transition-all shadow-xl flex items-center justify-center gap-4 text-lg">
                      {loading ? (
                        <span className="flex items-center gap-3">
                           <i className="fas fa-spinner fa-spin"></i>
                           <span className="text-[10px] uppercase tracking-widest">{loadingMsg}</span>
                        </span>
                      ) : (
-                       <>Valider & Recevoir mon Ticket <i className="fas fa-paper-plane"></i></>
+                       <>Valider & Recevoir mon Badge <i className="fas fa-paper-plane"></i></>
                      )}
                   </button>
                 )

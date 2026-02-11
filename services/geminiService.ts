@@ -19,17 +19,17 @@ export const generateEmailContent = async (participant: Participant): Promise<st
       
       L'email doit inclure :
       - Un ton institutionnel mais accueillant.
-      - Un rappel des détails (05 mars 2026, 12h-17h, CSC Thiaroye sur Mer).
-      - Une instruction claire pour télécharger et présenter le ticket.
+      - Un rappel des détails (05 mars 2026, 10h00 - 16h00, CSC Thiaroye sur Mer).
+      - Une instruction claire pour présenter ce badge numérique (le QR code sera scanné à l'entrée).
       - Une signature : La Direction d'Assirou Sécurité.`,
       config: {
         temperature: 0.7,
       },
     });
 
-    return response.text || "Merci pour votre inscription.";
+    return response.text || "Merci pour votre inscription au Forum Sécurité 2026.";
   } catch (error) {
     console.error("Gemini Error:", error);
-    return "Inscription confirmée.";
+    return "Votre inscription au Forum Sécurité 2026 est confirmée. Rendez-vous le 05 Mars à 10h.";
   }
 };
