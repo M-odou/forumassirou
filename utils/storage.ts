@@ -12,7 +12,6 @@ const LOCAL_STORAGE_KEY = 'participants_fallback';
 const saveToLocal = (participant: Participant) => {
   try {
     const localData = JSON.parse(localStorage.getItem(LOCAL_STORAGE_KEY) || '[]');
-    // Éviter les doublons par numéro de ticket
     if (!localData.find((p: Participant) => p.numero_ticket === participant.numero_ticket)) {
       localData.push(participant);
       localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(localData));
@@ -24,7 +23,8 @@ const saveToLocal = (participant: Participant) => {
 
 const getFromLocal = (): Participant[] => {
   try {
-    return JSON.parse(localStorage.getItem(LOCAL_STORAGE_KEY) || '[]');
+    const data = localStorage.getItem(LOCAL_STORAGE_KEY);
+    return data ? JSON.parse(data) : [];
   } catch (e) {
     return [];
   }
@@ -41,15 +41,15 @@ export const getParticipants = async (): Promise<Participant[]> => {
     if (error) throw error;
     remoteData = data || [];
   } catch (e) {
-    console.warn("Supabase fetch failed, using local only:", e);
+    console.warn("Supabase inaccessible, lecture locale uniquement.");
   }
 
   const localData = getFromLocal();
   
-  // Fusionner et dédoublonner par numéro de ticket
+  // Fusion intelligente : On prend tout de Supabase et on ajoute ce qui n'est que local
   const combined = [...remoteData];
   localData.forEach(localP => {
-    if (!combined.find(remoteP => remoteP.numero_ticket === localP.numero_ticket)) {
+    if (!combined.some(remoteP => remoteP.numero_ticket === localP.numero_ticket)) {
       combined.push(localP);
     }
   });
@@ -61,60 +61,51 @@ export const getParticipants = async (): Promise<Participant[]> => {
 
 export const getParticipantByTicket = async (ticketId: string): Promise<Participant | null> => {
   try {
-    const { data, error } = await supabase
+    const { data } = await supabase
       .from('participants')
       .select('*')
       .eq('numero_ticket', ticketId)
       .maybeSingle();
     
     if (data) return data;
-  } catch (e) {
-    console.warn("Supabase single fetch failed:", e);
-  }
+  } catch (e) {}
   
-  const local = getFromLocal();
-  return local.find(p => p.numero_ticket === ticketId) || null;
+  return getFromLocal().find(p => p.numero_ticket === ticketId) || null;
 };
 
 export const saveParticipant = async (participantData: Omit<Participant, 'id'>): Promise<boolean> => {
   const tempId = Math.random().toString(36).substring(2, 15);
   
   try {
-    // Tenter l'insertion Supabase sans ID (laisser Supabase le générer)
-    const { error } = await supabase
+    const { data, error } = await supabase
       .from('participants')
-      .insert([participantData]);
+      .insert([participantData])
+      .select();
     
-    if (error) {
-      console.error("Supabase Insertion Error:", error);
-      throw error;
-    }
+    if (error) throw error;
     return true;
   } catch (e) {
-    console.warn("Sauvegarde sur Supabase impossible, utilisation du stockage local:", e);
-    // Sauvegarder localement en cas d'échec
-    const localEntry: Participant = {
-      ...participantData,
-      id: tempId,
-    } as Participant;
+    console.warn("Echec Supabase, sauvegarde locale de secours.");
+    const localEntry: Participant = { ...participantData, id: tempId } as Participant;
     saveToLocal(localEntry);
-    return true; // On retourne true car l'inscription est persistée localement
+    return true; 
   }
 };
 
 export const deleteParticipant = async (id: string): Promise<boolean> => {
   try {
-    // Supprimer de Supabase
-    await supabase.from('participants').delete().eq('id', id);
+    // Si l'id est un UUID (Supabase)
+    if (id.length > 20) {
+      await supabase.from('participants').delete().eq('id', id);
+    }
     
-    // Supprimer du local
+    // Toujours nettoyer le local aussi par sécurité
     const localData = getFromLocal();
     const filtered = localData.filter((p: Participant) => p.id !== id);
     localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(filtered));
     
     return true;
   } catch (e) {
-    console.error("Delete error:", e);
     return false;
   }
 };
@@ -128,8 +119,7 @@ export const generateTicketNumber = async (): Promise<string> => {
     const nextCount = (count || 0) + getFromLocal().length + 1;
     return `FORUM-SEC-2026-${nextCount.toString().padStart(4, '0')}`;
   } catch (e) {
-    const timestamp = Date.now().toString().slice(-4);
-    return `FORUM-26-${timestamp}-${Math.floor(Math.random() * 1000)}`;
+    return `FORUM-26-${Date.now().toString().slice(-4)}-${Math.floor(Math.random() * 1000)}`;
   }
 };
 

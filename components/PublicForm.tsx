@@ -3,7 +3,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { saveParticipant, generateTicketNumber, isRegistrationActive } from '../utils/storage';
 import { Participant } from '../types';
-import { generateEmailContent } from '../services/geminiService';
+import { sendConfirmationEmail } from '../services/mailService';
 
 const CANAUX_FORUM = ["Facebook", "Youtube", "Tiktok", "Siteweb", "Instagram", "Média", "Bouche à oreille"];
 const CANAUX_ASSIROU = ["Réseaux Sociaux", "Site Web Officiel", "Ancien Client", "Recommandation", "Publicité", "Autre"];
@@ -36,12 +36,8 @@ const PublicForm: React.FC = () => {
 
   useEffect(() => {
     const checkStatus = async () => {
-      try {
-        const active = await isRegistrationActive();
-        setIsActive(active);
-      } catch (e) {
-        setIsActive(true);
-      }
+      const active = await isRegistrationActive();
+      setIsActive(active);
     };
     checkStatus();
   }, []);
@@ -78,13 +74,11 @@ const PublicForm: React.FC = () => {
     if (!isActive || !confirmed || step < 5) return;
     
     setLoading(true);
-    setLoadingMsg('Génération du ticket en cours...');
+    setLoadingMsg('Enregistrement de votre accès...');
 
     try {
-      // 1. Génération du numéro de ticket
       const ticketNum = await generateTicketNumber();
       
-      // 2. Préparation des données complètes
       const participantToSave = {
         nom_complet: formData.nom_complet || '',
         adresse_email: formData.adresse_email || '',
@@ -103,27 +97,31 @@ const PublicForm: React.FC = () => {
         statut_email: 'pending' as const
       };
 
-      // 3. Sauvegarde
-      await saveParticipant(participantToSave);
+      // 1. Sauvegarde en base de données
+      const saved = await saveParticipant(participantToSave);
       
-      // 4. Simulation Email AI (sans bloquer si échec)
-      setLoadingMsg('AI : Envoi de votre copie par mail...');
-      try {
-        await generateEmailContent(participantToSave as Participant);
-      } catch (mailError) {
-        console.warn("L'envoi d'email AI a échoué mais l'inscription est validée.");
+      if (saved) {
+        // 2. Déclenchement de l'envoi d'email (Le Sel)
+        setLoadingMsg('AI : Envoi de votre ticket par e-mail...');
+        try {
+          // On n'attend pas forcément que l'email soit fini pour rediriger, 
+          // mais on lance le processus.
+          sendConfirmationEmail(participantToSave as Participant);
+        } catch (mailError) {
+          console.error("Échec du déclenchement mail:", mailError);
+        }
+        
+        setLoadingMsg('Inscription réussie ! Redirection...');
+        
+        setTimeout(() => {
+          navigate(`/ticket/${ticketNum}`);
+        }, 1500);
+      } else {
+        throw new Error("Erreur de sauvegarde");
       }
-      
-      setLoadingMsg('Inscription validée !');
-      
-      // 5. Redirection
-      setTimeout(() => {
-        navigate(`/ticket/${ticketNum}`);
-      }, 1000);
-
     } catch (error) {
-      console.error("Submission Error Details:", error);
-      alert("Désolé, une erreur technique est survenue. L'inscription n'a pas pu être finalisée.");
+      console.error("Submission Error:", error);
+      alert("Une erreur est survenue. Veuillez vérifier votre connexion.");
       setLoading(false);
     }
   };
@@ -331,8 +329,8 @@ const PublicForm: React.FC = () => {
                       <span className="text-sm font-black text-assirou-navy">{formData.nom_complet}</span>
                    </div>
                    <div className="flex justify-between items-center border-b border-slate-200 pb-3">
-                      <span className="text-[10px] font-bold text-slate-400 uppercase">Lieu de l'événement</span>
-                      <span className="text-sm font-bold text-assirou-gold">CSC Thiaroye sur Mer</span>
+                      <span className="text-[10px] font-bold text-slate-400 uppercase">E-mail de réception</span>
+                      <span className="text-sm font-bold text-assirou-navy">{formData.adresse_email}</span>
                    </div>
                    <div className="flex justify-between items-center border-b border-slate-200 pb-3">
                       <span className="text-[10px] font-bold text-slate-400 uppercase">Horaire</span>
@@ -349,7 +347,7 @@ const PublicForm: React.FC = () => {
                         </div>
                       </div>
                       <span className="text-[11px] font-bold text-assirou-navy leading-relaxed">
-                        Je confirme mon inscription au Forum et j'accepte de recevoir mon badge d'accès par e-mail.
+                        Je confirme mon inscription et j'accepte de recevoir mon ticket par e-mail.
                       </span>
                     </label>
                 </div>
@@ -376,7 +374,7 @@ const PublicForm: React.FC = () => {
                           <span className="text-[10px] uppercase tracking-widest">{loadingMsg}</span>
                        </span>
                      ) : (
-                       <>Générer mon Ticket <i className="fas fa-ticket-alt"></i></>
+                       <>Valider & Recevoir mon Ticket <i className="fas fa-paper-plane"></i></>
                      )}
                   </button>
                 )
