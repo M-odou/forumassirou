@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect } from 'react';
-import { getParticipants, isRegistrationActive, setRegistrationStatus, exportParticipantsToCSV } from '../utils/storage';
+import { getParticipants, isRegistrationActive, setRegistrationStatus, exportParticipantsToCSV, deleteParticipant } from '../utils/storage';
 import { Participant } from '../types';
 
 const AdminDashboard: React.FC = () => {
@@ -9,16 +9,18 @@ const AdminDashboard: React.FC = () => {
   const [search, setSearch] = useState('');
   const [selected, setSelected] = useState<Participant | null>(null);
   const [loading, setLoading] = useState(true);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+
+  const loadData = async () => {
+    setLoading(true);
+    const data = await getParticipants();
+    const status = await isRegistrationActive();
+    setParticipants(data);
+    setActive(status);
+    setLoading(false);
+  };
 
   useEffect(() => {
-    const loadData = async () => {
-      setLoading(true);
-      const data = await getParticipants();
-      const status = await isRegistrationActive();
-      setParticipants(data);
-      setActive(status);
-      setLoading(false);
-    };
     loadData();
   }, []);
 
@@ -28,13 +30,27 @@ const AdminDashboard: React.FC = () => {
     setActive(newState);
   };
 
+  const handleDelete = async (id: string, name: string) => {
+    if (window.confirm(`Êtes-vous sûr de vouloir supprimer l'inscription de ${name} ? Cette action est irréversible.`)) {
+      setDeletingId(id);
+      const success = await deleteParticipant(id);
+      if (success) {
+        setParticipants(participants.filter(p => p.id !== id));
+        if (selected?.id === id) setSelected(null);
+      } else {
+        alert("Erreur lors de la suppression.");
+      }
+      setDeletingId(null);
+    }
+  };
+
   const filtered = participants.filter(p => 
     p.nom_complet.toLowerCase().includes(search.toLowerCase()) || 
     p.adresse_email.toLowerCase().includes(search.toLowerCase()) ||
     p.numero_ticket.toLowerCase().includes(search.toLowerCase())
   );
 
-  if (loading) {
+  if (loading && participants.length === 0) {
     return (
       <div className="min-h-screen bg-[#00153a] flex items-center justify-center">
         <div className="text-center space-y-4">
@@ -95,15 +111,44 @@ const AdminDashboard: React.FC = () => {
         <div className="bg-white/5 border border-white/10 rounded-[3rem] overflow-hidden">
           <div className="p-10 border-b border-white/5 flex flex-col md:flex-row justify-between items-center gap-8">
             <h3 className="text-2xl font-black uppercase tracking-tight">Soumissions</h3>
-            <input type="text" placeholder="Chercher..." className="w-full md:w-96 bg-white/5 border border-white/10 rounded-2xl py-4 px-6 outline-none focus:border-assirou-gold transition-all font-bold text-sm" value={search} onChange={e => setSearch(e.target.value)} />
+            <input type="text" placeholder="Chercher un nom, email ou ticket..." className="w-full md:w-96 bg-white/5 border border-white/10 rounded-2xl py-4 px-6 outline-none focus:border-assirou-gold transition-all font-bold text-sm" value={search} onChange={e => setSearch(e.target.value)} />
           </div>
           <div className="overflow-x-auto">
             <table className="w-full text-left">
-              <thead><tr className="text-[10px] font-black text-slate-500 uppercase tracking-[0.3em] border-b border-white/5"><th className="px-10 py-8">Participant</th><th className="px-10 py-8">Profil</th><th className="px-10 py-8 text-right">Détails</th></tr></thead>
+              <thead><tr className="text-[10px] font-black text-slate-500 uppercase tracking-[0.3em] border-b border-white/5"><th className="px-10 py-8">Participant</th><th className="px-10 py-8">Profil</th><th className="px-10 py-8 text-right">Actions</th></tr></thead>
               <tbody className="divide-y divide-white/5">
                 {filtered.map(p => (
-                  <tr key={p.id} className="hover:bg-white/[0.03] transition-colors"><td className="px-10 py-8"><div className="font-black">{p.nom_complet}</div><div className="text-xs text-slate-500">{p.adresse_email}</div></td><td className="px-10 py-8"><span className="text-assirou-gold text-[10px] font-black">{p.participation}</span></td><td className="px-10 py-8 text-right"><button onClick={() => setSelected(p)} className="p-4 bg-white/5 hover:bg-assirou-gold hover:text-assirou-navy rounded-2xl transition-all"><i className="fas fa-expand-alt"></i></button></td></tr>
+                  <tr key={p.id} className="hover:bg-white/[0.03] transition-colors">
+                    <td className="px-10 py-8">
+                      <div className="font-black">{p.nom_complet}</div>
+                      <div className="text-xs text-slate-500">{p.adresse_email}</div>
+                    </td>
+                    <td className="px-10 py-8">
+                      <span className="text-assirou-gold text-[10px] font-black">{p.participation}</span>
+                    </td>
+                    <td className="px-10 py-8 text-right">
+                      <div className="flex justify-end gap-2">
+                        <button onClick={() => setSelected(p)} className="w-12 h-12 bg-white/5 hover:bg-assirou-gold hover:text-assirou-navy rounded-xl transition-all flex items-center justify-center">
+                          <i className="fas fa-eye"></i>
+                        </button>
+                        <button 
+                          onClick={() => handleDelete(p.id, p.nom_complet)} 
+                          disabled={deletingId === p.id}
+                          className="w-12 h-12 bg-white/5 hover:bg-red-500 text-white rounded-xl transition-all flex items-center justify-center disabled:opacity-50"
+                        >
+                          {deletingId === p.id ? <i className="fas fa-spinner fa-spin"></i> : <i className="fas fa-trash-alt"></i>}
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
                 ))}
+                {filtered.length === 0 && (
+                  <tr>
+                    <td colSpan={3} className="px-10 py-20 text-center text-slate-500 font-bold uppercase tracking-widest text-xs">
+                      Aucun participant trouvé
+                    </td>
+                  </tr>
+                )}
               </tbody>
             </table>
           </div>
@@ -112,24 +157,69 @@ const AdminDashboard: React.FC = () => {
 
       {selected && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-6 bg-[#000d26]/90 backdrop-blur-md">
-          <div className="bg-[#001c4d] border border-white/10 rounded-[3rem] p-12 max-w-3xl w-full shadow-2xl relative overflow-hidden">
+          <div className="bg-[#001c4d] border border-white/10 rounded-[3rem] p-12 max-w-3xl w-full shadow-2xl relative overflow-hidden max-h-[90vh] overflow-y-auto">
             <div className="flex justify-between items-start mb-12 relative z-10">
-              <div><h3 className="text-4xl font-black mb-2">{selected.nom_complet}</h3><p className="text-assirou-gold font-black mono text-sm">{selected.numero_ticket}</p></div>
-              <button onClick={() => setSelected(null)} className="w-14 h-14 bg-white/5 rounded-2xl flex items-center justify-center hover:bg-red-500 transition-all"><i className="fas fa-times text-xl"></i></button>
-            </div>
-            <div className="grid grid-cols-2 gap-10 mb-12">
-              <div className="space-y-4">
-                <div><p className="text-[10px] text-slate-500 uppercase">Téléphone</p><p className="font-bold">{selected.telephone}</p></div>
-                <div><p className="text-[10px] text-slate-500 uppercase">Formation</p><p className="font-bold">{selected.souhait_formation}</p></div>
+              <div>
+                <h3 className="text-4xl font-black mb-2">{selected.nom_complet}</h3>
+                <p className="text-assirou-gold font-black mono text-sm">{selected.numero_ticket}</p>
               </div>
-              <div className="space-y-4">
-                <div><p className="text-[10px] text-slate-500 uppercase">Structure</p><p className="font-bold">{selected.organisation_entreprise || 'N/A'}</p></div>
-                <div><p className="text-[10px] text-slate-500 uppercase">Avis</p><p className="text-sm text-slate-300 italic">"{selected.avis_theme || '...'}"</p></div>
+              <button onClick={() => setSelected(null)} className="w-14 h-14 bg-white/5 rounded-2xl flex items-center justify-center hover:bg-red-500 transition-all">
+                <i className="fas fa-times text-xl"></i>
+              </button>
+            </div>
+            
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-10 mb-12">
+              <div className="space-y-6">
+                <div>
+                  <p className="text-[10px] text-slate-500 uppercase font-black tracking-widest mb-1">Téléphone</p>
+                  <p className="font-bold text-lg">{selected.telephone}</p>
+                </div>
+                <div>
+                  <p className="text-[10px] text-slate-500 uppercase font-black tracking-widest mb-1">Email</p>
+                  <p className="font-bold text-lg">{selected.adresse_email}</p>
+                </div>
+                <div>
+                  <p className="text-[10px] text-slate-500 uppercase font-black tracking-widest mb-1">Structure</p>
+                  <p className="font-bold text-lg">{selected.organisation_entreprise || 'N/A'}</p>
+                </div>
+              </div>
+              <div className="space-y-6">
+                <div>
+                  <p className="text-[10px] text-slate-500 uppercase font-black tracking-widest mb-1">Formation Souhaitée</p>
+                  <p className={`font-bold ${selected.souhait_formation === 'Oui' ? 'text-green-400' : 'text-slate-400'}`}>
+                    {selected.souhait_formation} {selected.type_formation?.length ? `(${selected.type_formation.join(', ')})` : ''}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-[10px] text-slate-500 uppercase font-black tracking-widest mb-1">Services Intéressés</p>
+                  <p className={`font-bold ${selected.interet_services === 'Oui' ? 'text-blue-400' : 'text-slate-400'}`}>
+                    {selected.interet_services} {selected.services_interesses?.length ? `(${selected.services_interesses.join(', ')})` : ''}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-[10px] text-slate-500 uppercase font-black tracking-widest mb-1">Avis sur le thème</p>
+                  <p className="text-sm text-slate-300 italic bg-white/5 p-4 rounded-xl border border-white/5">
+                    "{selected.avis_theme || 'Aucun avis laissé.'}"
+                  </p>
+                </div>
               </div>
             </div>
-            <div className="flex gap-4">
-              <a href={`#/ticket/${selected.numero_ticket}`} target="_blank" rel="noreferrer" className="flex-1 px-8 py-5 bg-assirou-gold text-assirou-navy rounded-2xl font-black text-center text-[10px] uppercase tracking-widest shadow-xl">Voir Ticket</a>
-              <button onClick={() => setSelected(null)} className="flex-1 px-8 py-5 bg-white/10 rounded-2xl font-black text-[10px] uppercase tracking-widest">Fermer</button>
+
+            <div className="flex flex-col sm:flex-row gap-4">
+              <a href={`#/ticket/${selected.numero_ticket}`} target="_blank" rel="noreferrer" className="flex-1 px-8 py-5 bg-assirou-gold text-assirou-navy rounded-2xl font-black text-center text-[10px] uppercase tracking-widest shadow-xl hover:scale-105 transition-all">
+                Voir le Ticket
+              </a>
+              <button 
+                onClick={() => {
+                  handleDelete(selected.id, selected.nom_complet);
+                }} 
+                className="flex-1 px-8 py-5 bg-red-600/20 text-red-500 border border-red-500/20 rounded-2xl font-black text-[10px] uppercase tracking-widest hover:bg-red-600 hover:text-white transition-all"
+              >
+                Supprimer Inscription
+              </button>
+              <button onClick={() => setSelected(null)} className="flex-1 px-8 py-5 bg-white/10 rounded-2xl font-black text-[10px] uppercase tracking-widest hover:bg-white/20 transition-all">
+                Fermer
+              </button>
             </div>
           </div>
         </div>

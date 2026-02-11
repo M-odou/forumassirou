@@ -64,6 +64,25 @@ export const saveParticipant = async (participant: Participant): Promise<boolean
   }
 };
 
+export const deleteParticipant = async (id: string): Promise<boolean> => {
+  try {
+    const { error } = await supabase
+      .from('participants')
+      .delete()
+      .eq('id', id);
+    
+    if (error) throw error;
+    return true;
+  } catch (e) {
+    console.error("Erreur lors de la suppression:", e);
+    // Supprimer aussi du fallback local
+    const localData = JSON.parse(localStorage.getItem('participants_fallback') || '[]');
+    const filtered = localData.filter((p: Participant) => p.id !== id);
+    localStorage.setItem('participants_fallback', JSON.stringify(filtered));
+    return true;
+  }
+};
+
 export const generateTicketNumber = async (): Promise<string> => {
   try {
     const { count } = await supabase

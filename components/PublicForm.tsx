@@ -89,12 +89,16 @@ const PublicForm: React.FC = () => {
       const success = await saveParticipant(newParticipant);
       
       if (success) {
-        setLoadingMsg('Badge prêt ! Finalisation...');
-        generateEmailContent(newParticipant).catch(console.error);
+        setLoadingMsg('AI : Rédaction de votre e-mail de confirmation...');
+        // On génère le contenu de l'email via Gemini
+        const emailContent = await generateEmailContent(newParticipant);
+        console.log("Email généré avec succès pour l'utilisateur:", emailContent);
+        
+        setLoadingMsg('Badge prêt ! Redirection...');
         
         setTimeout(() => {
           navigate(`/ticket/${ticketNum}`);
-        }, 800);
+        }, 1500);
       } else {
         alert("Une erreur est survenue lors de l'enregistrement.");
         setLoading(false);
