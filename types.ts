@@ -5,7 +5,7 @@ export interface Participant {
   adresse_email: string;
   telephone: string;
   organisation_entreprise: string;
-  participation: 'Individuel' | "Représentant d'une entreprise" | 'Professionnel de la sécurité' | 'Autre';
+  participation: "Individuel" | "Représentant d'une entreprise" | "Professionnel de la sécurité" | "Étudiant / Chercheur" | "Autre";
   avis_theme?: string;
   canal_forum: string[];
   canal_assirou: string[];
