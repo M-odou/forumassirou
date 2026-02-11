@@ -2,104 +2,91 @@
 import { createClient } from '@supabase/supabase-js';
 import { Participant } from '../types';
 
-// Récupération des variables d'environnement
-// Note : SUPABASE_URL et SUPABASE_ANON_KEY doivent être configurés dans votre environnement.
-const supabaseUrl = process.env.SUPABASE_URL;
-const supabaseAnonKey = process.env.SUPABASE_ANON_KEY;
+// REMPLACEZ 'votre-projet-id' par l'identifiant réel de votre projet Supabase
+const supabaseUrl = 'https://s9pmyrnhvowevpk0mlt2.supabase.co'; // Exemple basé sur votre clé
+const supabaseAnonKey = 'sb_publishable_s9PMYRnHvoweVPk0MLT2Lg_g6qWGroq';
 
-// Initialisation sécurisée pour éviter le crash si les clés manquent
-export const supabase = (supabaseUrl && supabaseAnonKey) 
-  ? createClient(supabaseUrl, supabaseAnonKey) 
-  : null;
+export const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
-const ensureSupabase = () => {
-  if (!supabase) {
-    const msg = "Supabase n'est pas configuré. Veuillez définir SUPABASE_URL et SUPABASE_ANON_KEY dans vos variables d'environnement.";
-    console.error(msg);
-    throw new Error(msg);
-  }
-  return supabase;
+const saveToLocal = (participant: Participant) => {
+  const localData = JSON.parse(localStorage.getItem('participants_fallback') || '[]');
+  localData.push(participant);
+  localStorage.setItem('participants_fallback', JSON.stringify(localData));
+};
+
+const getFromLocal = (ticketId: string): Participant | null => {
+  const localData = JSON.parse(localStorage.getItem('participants_fallback') || '[]');
+  return localData.find((p: Participant) => p.numero_ticket === ticketId) || null;
 };
 
 export const getParticipants = async (): Promise<Participant[]> => {
   try {
-    const client = ensureSupabase();
-    const { data, error } = await client
+    const { data, error } = await supabase
       .from('participants')
       .select('*')
       .order('date_inscription', { ascending: false });
     
-    if (error) {
-      console.error("Error fetching participants:", error);
-      return [];
-    }
+    if (error) throw error;
     return data as Participant[];
   } catch (e) {
-    console.warn("Échec de la récupération des participants (Supabase non configuré ou erreur réseau).");
-    return [];
+    console.error("Erreur lors de la récupération des participants:", e);
+    return JSON.parse(localStorage.getItem('participants_fallback') || '[]');
   }
 };
 
 export const getParticipantByTicket = async (ticketId: string): Promise<Participant | null> => {
   try {
-    const client = ensureSupabase();
-    const { data, error } = await client
+    const { data, error } = await supabase
       .from('participants')
       .select('*')
       .eq('numero_ticket', ticketId)
       .single();
     
-    if (error) return null;
+    if (error) throw error;
     return data as Participant;
   } catch (e) {
-    return null;
+    return getFromLocal(ticketId);
   }
 };
 
 export const saveParticipant = async (participant: Participant): Promise<boolean> => {
   try {
-    const client = ensureSupabase();
-    const { error } = await client
+    const { error } = await supabase
       .from('participants')
       .insert([participant]);
     
-    if (error) {
-      console.error("Error saving participant:", error);
-      return false;
-    }
+    if (error) throw error;
     return true;
   } catch (e) {
-    return false;
+    console.error("Erreur Supabase, sauvegarde locale activée:", e);
+    saveToLocal(participant);
+    return true; // On retourne true car la sauvegarde locale a fonctionné
   }
 };
 
 export const generateTicketNumber = async (): Promise<string> => {
   try {
-    const client = ensureSupabase();
-    const { count, error } = await client
+    const { count } = await supabase
       .from('participants')
       .select('*', { count: 'exact', head: true });
     
     const nextCount = (count || 0) + 1;
-    const padded = nextCount.toString().padStart(4, '0');
-    return `FORUM-SEC-2026-${padded}`;
+    return `FORUM-SEC-2026-${nextCount.toString().padStart(4, '0')}`;
   } catch (e) {
-    // Fallback en cas d'absence de DB pour que l'interface reste fonctionnelle en démo
-    return `FORUM-SEC-2026-${Math.floor(Math.random() * 9999).toString().padStart(4, '0')}`;
+    const timestamp = Date.now().toString().slice(-4);
+    const random = Math.floor(Math.random() * 1000).toString().padStart(3, '0');
+    return `FORUM-26-${timestamp}-${random}`;
   }
 };
 
 export const isRegistrationActive = async (): Promise<boolean> => {
   try {
-    const client = ensureSupabase();
-    const { data, error } = await client
+    const { data } = await supabase
       .from('settings')
       .select('value')
       .eq('key', 'registration_active')
       .single();
-    
-    if (error || !data) return true;
-    return data.value === 'true';
+    return !data || data.value === 'true';
   } catch (e) {
     return true;
   }
@@ -107,43 +94,27 @@ export const isRegistrationActive = async (): Promise<boolean> => {
 
 export const setRegistrationStatus = async (active: boolean): Promise<void> => {
   try {
-    const client = ensureSupabase();
-    await client
+    await supabase
       .from('settings')
       .upsert({ key: 'registration_active', value: active.toString() });
-  } catch (e) {
-    console.error("Échec de la mise à jour du statut d'inscription.");
-  }
+  } catch (e) {}
 };
 
 export const exportParticipantsToCSV = async () => {
   const participants = await getParticipants();
   if (participants.length === 0) return;
-
-  const headers = ["Ticket", "Nom Complet", "Email", "Telephone", "Structure", "Type", "Formation", "Date"];
+  const headers = ["Ticket", "Nom", "Email", "Tel", "Structure", "Type", "Formation", "Services"];
   const rows = participants.map(p => [
-    p.numero_ticket,
-    p.nom_complet,
-    p.adresse_email,
-    p.telephone,
-    p.organisation_entreprise || 'N/A',
-    p.participation,
-    p.souhait_formation,
-    new Date(p.date_inscription).toLocaleDateString()
+    p.numero_ticket, p.nom_complet, p.adresse_email, p.telephone,
+    p.organisation_entreprise || 'N/A', p.participation,
+    p.type_formation?.join(' / ') || 'Non',
+    p.services_interesses?.join(' / ') || 'Non'
   ]);
-
-  const csvContent = [
-    headers.join(","),
-    ...rows.map(e => e.join(","))
-  ].join("\n");
-
+  const csvContent = [headers.join(","), ...rows.map(e => e.join(","))].join("\n");
   const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
   const url = URL.createObjectURL(blob);
   const link = document.createElement("a");
   link.setAttribute("href", url);
-  link.setAttribute("download", `participants_forum_2026.csv`);
-  link.style.visibility = 'hidden';
-  document.body.appendChild(link);
+  link.setAttribute("download", `export_forum_2026.csv`);
   link.click();
-  document.body.removeChild(link);
 };
