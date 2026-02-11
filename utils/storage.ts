@@ -57,7 +57,6 @@ export const getParticipants = async (): Promise<Participant[]> => {
   );
 };
 
-// Fix: Export the missing getParticipantByTicket function for TicketView.tsx
 export const getParticipantByTicket = async (ticketNumber: string): Promise<Participant | null> => {
   try {
     const { data, error } = await supabase
@@ -69,11 +68,9 @@ export const getParticipantByTicket = async (ticketNumber: string): Promise<Part
     if (error) throw error;
     if (data) return data as Participant;
 
-    // Check local storage if the record isn't found in Supabase (fallback/offline scenario)
     const localData = getFromLocal();
     return localData.find(p => p.numero_ticket === ticketNumber) || null;
   } catch (e) {
-    console.warn("Error fetching participant from Supabase, checking local storage.");
     const localData = getFromLocal();
     return localData.find(p => p.numero_ticket === ticketNumber) || null;
   }
@@ -108,13 +105,20 @@ export const subscribeToParticipants = (callback: () => void) => {
 
 export const deleteParticipant = async (id: string): Promise<boolean> => {
   try {
+    // 1. Suppression dans Supabase (priorité)
     if (id && id.length > 20) {
-      await supabase.from('participants').delete().eq('id', id);
+      const { error } = await supabase.from('participants').delete().eq('id', id);
+      if (error) console.error("Supabase delete error:", error);
     }
+    
+    // 2. Nettoyage local systématique
     const localData = getFromLocal();
-    localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(localData.filter(p => p.id !== id)));
+    const filtered = localData.filter(p => p.id !== id);
+    localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(filtered));
+    
     return true;
   } catch (e) {
+    console.error("Erreur suppression:", e);
     return false;
   }
 };
