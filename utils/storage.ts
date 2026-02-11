@@ -2,9 +2,9 @@
 import { createClient } from '@supabase/supabase-js';
 import { Participant } from '../types';
 
-// REMPLACEZ 'votre-projet-id' par l'identifiant réel de votre projet Supabase
-const supabaseUrl = 'https://s9pmyrnhvowevpk0mlt2.supabase.co'; // Exemple basé sur votre clé
-const supabaseAnonKey = 'sb_publishable_s9PMYRnHvoweVPk0MLT2Lg_g6qWGroq';
+// Configuration Supabase optimisée pour le déploiement
+const supabaseUrl = process.env.SUPABASE_URL || 'https://s9pmyrnhvowevpk0mlt2.supabase.co';
+const supabaseAnonKey = process.env.SUPABASE_ANON_KEY || 'sb_publishable_s9PMYRnHvoweVPk0MLT2Lg_g6qWGroq';
 
 export const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
@@ -60,7 +60,7 @@ export const saveParticipant = async (participant: Participant): Promise<boolean
   } catch (e) {
     console.error("Erreur Supabase, sauvegarde locale activée:", e);
     saveToLocal(participant);
-    return true; // On retourne true car la sauvegarde locale a fonctionné
+    return true;
   }
 };
 
