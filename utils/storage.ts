@@ -9,16 +9,6 @@ export const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
 const LOCAL_STORAGE_KEY = 'participants_backup';
 
-const saveToLocal = (participant: Participant) => {
-  try {
-    const localData = getFromLocal();
-    if (!localData.find(p => p.numero_ticket === participant.numero_ticket)) {
-      localData.push(participant);
-      localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(localData));
-    }
-  } catch (e) { console.error("Local save error:", e); }
-};
-
 const getFromLocal = (): Participant[] => {
   try {
     const data = localStorage.getItem(LOCAL_STORAGE_KEY);
@@ -48,31 +38,22 @@ export const getParticipants = async (): Promise<Participant[]> => {
 
 export const getParticipantByTicket = async (ticketInput: string): Promise<Participant | null> => {
   if (!ticketInput) return null;
-  
   let cleanId = ticketInput.trim();
-  if (cleanId.includes('/')) {
-    cleanId = cleanId.split('/').pop() || cleanId;
-  }
-  if (cleanId.includes('#')) {
-    cleanId = cleanId.split('#').pop() || cleanId;
-  }
+  if (cleanId.includes('/')) cleanId = cleanId.split('/').pop() || cleanId;
+  if (cleanId.includes('#')) cleanId = cleanId.split('#').pop() || cleanId;
   cleanId = cleanId.toUpperCase();
 
   try {
-    const { data, error } = await supabase
+    const { data } = await supabase
       .from('participants')
       .select('*')
       .or(`numero_ticket.ilike.%${cleanId}%,id.eq.${cleanId}`)
       .maybeSingle();
-      
     if (data) return data as Participant;
-  } catch (e) {
-    console.error("Erreur recherche Supabase:", e);
-  }
+  } catch (e) {}
 
   return getFromLocal().find(p => 
-    p.numero_ticket.toUpperCase().includes(cleanId) || 
-    p.id.toUpperCase().includes(cleanId)
+    p.numero_ticket.toUpperCase().includes(cleanId) || p.id.toUpperCase().includes(cleanId)
   ) || null;
 };
 
@@ -83,44 +64,28 @@ export const validateTicket = async (id: string): Promise<boolean> => {
       .from('participants')
       .update({ scan_valide: true, date_validation: now })
       .eq('id', id);
-    if (error) throw error;
-    return true;
-  } catch (e) {
-    console.error("Erreur validation ticket:", e);
-    return false;
-  }
+    return !error;
+  } catch (e) { return false; }
 };
 
 export const saveParticipant = async (participantData: Omit<Participant, 'id'>): Promise<boolean> => {
-  const tempId = 'ID_' + Math.random().toString(36).substr(2, 9);
-  const fullParticipant = { ...participantData, id: tempId } as Participant;
-  
   try {
     const { error } = await supabase.from('participants').insert([participantData]);
-    if (error) throw error;
-    return true;
-  } catch (e) {
-    console.warn("Sauvegarde locale uniquement (Échec DB):", e);
-    saveToLocal(fullParticipant);
-    return true; 
-  }
+    return !error;
+  } catch (e) { return false; }
 };
 
 export const deleteParticipant = async (id: string): Promise<boolean> => {
   try {
     const { error } = await supabase.from('participants').delete().eq('id', id);
-    const local = getFromLocal().filter(p => p.id !== id);
-    localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(local));
-    return true; 
+    return !error;
   } catch (e) { return false; }
 };
 
 export const generateTicketNumber = async (): Promise<string> => {
   try {
     const { count } = await supabase.from('participants').select('*', { count: 'exact', head: true });
-    const localCount = getFromLocal().length;
-    const total = (count || 0) + localCount + 1;
-    return `FORUM-SEC-2026-${total.toString().padStart(4, '0')}`;
+    return `FORUM-SEC-2026-${((count || 0) + 1).toString().padStart(4, '0')}`;
   } catch (e) { 
     return `FORUM-SEC-2026-${Math.floor(Math.random() * 9000 + 1000)}`; 
   }
@@ -134,9 +99,7 @@ export const isRegistrationActive = async (): Promise<boolean> => {
 };
 
 export const setRegistrationStatus = async (active: boolean): Promise<void> => {
-  try {
-    await supabase.from('settings').upsert({ key: 'registration_active', value: active.toString() });
-  } catch (e) {}
+  await supabase.from('settings').upsert({ key: 'registration_active', value: active.toString() });
 };
 
 export const isScanSystemActive = async (): Promise<boolean> => {
@@ -147,9 +110,7 @@ export const isScanSystemActive = async (): Promise<boolean> => {
 };
 
 export const setScanSystemStatus = async (active: boolean): Promise<void> => {
-  try {
-    await supabase.from('settings').upsert({ key: 'scan_active', value: active.toString() });
-  } catch (e) {}
+  await supabase.from('settings').upsert({ key: 'scan_active', value: active.toString() });
 };
 
 export const subscribeToParticipants = (callback: () => void) => {
@@ -158,11 +119,22 @@ export const subscribeToParticipants = (callback: () => void) => {
 
 export const exportParticipantsToCSV = async () => {
   const participants = await getParticipants();
-  const headers = ["Ticket", "Nom", "Email", "Tel", "Structure", "Scan Valide"];
-  const rows = participants.map(p => [p.numero_ticket, p.nom_complet, p.adresse_email, p.telephone, p.organisation_entreprise, p.scan_valide ? "OUI" : "NON"]);
-  const csvContent = "data:text/csv;charset=utf-8," + [headers.join(","), ...rows.map(e => e.join(","))].join("\n");
+  const headers = ["ID", "Nom Complet", "Email", "Telephone", "Organisation", "Type Participation", "Numero Ticket", "Date Inscription", "Scan Valide", "Date Validation"];
+  const rows = participants.map(p => [
+    p.id, 
+    p.nom_complet, 
+    p.adresse_email, 
+    p.telephone, 
+    p.organisation_entreprise || 'N/A', 
+    p.participation, 
+    p.numero_ticket, 
+    p.date_inscription, 
+    p.scan_valide ? "OUI" : "NON", 
+    p.date_validation || 'N/A'
+  ]);
+  const csvContent = "data:text/csv;charset=utf-8,\uFEFF" + [headers.join(","), ...rows.map(e => e.map(val => `"${val}"`).join(","))].join("\n");
   const link = document.createElement("a");
   link.setAttribute("href", encodeURI(csvContent));
-  link.setAttribute("download", "participants.csv");
+  link.setAttribute("download", `export-participants-${new Date().toISOString().split('T')[0]}.csv`);
   link.click();
 };
