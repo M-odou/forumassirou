@@ -5,6 +5,7 @@ import { Participant } from '../types';
 const supabaseUrl = process.env.SUPABASE_URL || '';
 const supabaseAnonKey = process.env.SUPABASE_ANON_KEY || '';
 
+// Initialisation robuste : on vérifie que l'URL est valide
 export const supabase: SupabaseClient | null = (supabaseUrl && supabaseAnonKey && supabaseUrl.startsWith('http'))
   ? createClient(supabaseUrl, supabaseAnonKey)
   : null;
@@ -14,6 +15,7 @@ const LOCAL_STORAGE_KEY = 'participants_backup';
 const saveToLocal = (participant: Participant) => {
   try {
     const localData = getFromLocal();
+    // On évite les doublons par numéro de ticket
     if (!localData.find(p => p.numero_ticket === participant.numero_ticket)) {
       localData.push(participant);
       localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(localData));
@@ -30,29 +32,47 @@ const getFromLocal = (): Participant[] => {
 
 export const getParticipants = async (): Promise<Participant[]> => {
   let remoteData: Participant[] = [];
+  
   if (supabase) {
     try {
       const { data, error } = await supabase
         .from('participants')
         .select('*')
         .order('date_inscription', { ascending: false });
-      if (!error) remoteData = data || [];
-    } catch (e) { console.warn("Supabase query failed"); }
+      
+      if (error) {
+        console.error("Supabase Query Error:", error.message);
+      } else {
+        remoteData = data || [];
+      }
+    } catch (e) { 
+      console.warn("Supabase connection failed, falling back to local storage"); 
+    }
   }
 
   const localData = getFromLocal();
-  const combined = [...remoteData];
-  localData.forEach(lp => {
-    if (!combined.some(rp => rp.id === lp.id || rp.numero_ticket === lp.numero_ticket)) {
-      combined.push(lp);
+  
+  // Fusion intelligente pour éviter les doublons entre local et remote
+  const combinedMap = new Map<string, Participant>();
+  
+  // On priorise les données distantes
+  remoteData.forEach(p => combinedMap.set(p.numero_ticket, p));
+  
+  // On ajoute les données locales qui ne sont pas encore sur le serveur
+  localData.forEach(p => {
+    if (!combinedMap.has(p.numero_ticket)) {
+      combinedMap.set(p.numero_ticket, p);
     }
   });
-  return combined.sort((a, b) => new Date(b.date_inscription).getTime() - new Date(a.date_inscription).getTime());
+
+  return Array.from(combinedMap.values()).sort((a, b) => 
+    new Date(b.date_inscription).getTime() - new Date(a.date_inscription).getTime()
+  );
 };
 
 export const getParticipantByTicket = async (ticketInput: string): Promise<Participant | null> => {
   if (!ticketInput) return null;
-  let cleanId = ticketInput.trim().toUpperCase();
+  const cleanId = ticketInput.trim().toUpperCase();
   
   if (supabase) {
     try {
@@ -115,10 +135,14 @@ export const saveParticipant = async (participantData: Omit<Participant, 'id' | 
     try {
       const { error } = await supabase.from('participants').insert([newParticipant]);
       if (!error) return true;
-    } catch (e) {}
+      console.error("Supabase Save Error:", error.message);
+    } catch (e) {
+      console.error("Supabase Save Exception:", e);
+    }
   }
   
-  const tempId = 'ID_' + Math.random().toString(36).substr(2, 9);
+  // Fallback local si Supabase échoue
+  const tempId = 'LOCAL_' + Math.random().toString(36).substr(2, 9);
   saveToLocal({ ...newParticipant, id: tempId } as Participant);
   return true;
 };
@@ -187,11 +211,9 @@ export const setScanSystemStatus = async (active: boolean): Promise<void> => {
 
 export const subscribeToParticipants = (callback: () => void) => {
   if (!supabase) return null;
-  // Utilisation d'un canal nommé spécifique pour forcer le rafraîchissement
   return supabase
-    .channel('realtime_participants')
+    .channel('public:participants')
     .on('postgres_changes', { event: '*', schema: 'public', table: 'participants' }, () => {
-      console.log("Realtime update received!");
       callback();
     })
     .subscribe();
@@ -199,11 +221,22 @@ export const subscribeToParticipants = (callback: () => void) => {
 
 export const exportParticipantsToCSV = async () => {
   const participants = await getParticipants();
-  const headers = ["ID", "Nom Complet", "Email", "Telephone", "Organisation", "Type Participation", "Numero Ticket", "Date Inscription", "Valide"];
-  const rows = participants.map(p => [p.id, p.nom_complet, p.adresse_email, p.telephone, p.organisation_entreprise || 'N/A', p.participation, p.numero_ticket, p.date_inscription, p.scan_valide ? "OUI" : "NON"]);
+  const headers = ["ID", "Nom Complet", "Email", "Telephone", "Organisation", "Type Participation", "Numero Ticket", "Date Inscription", "Valide", "Avis Theme"];
+  const rows = participants.map(p => [
+    p.id, 
+    p.nom_complet, 
+    p.adresse_email, 
+    p.telephone, 
+    p.organisation_entreprise || 'N/A', 
+    p.participation, 
+    p.numero_ticket, 
+    p.date_inscription, 
+    p.scan_valide ? "OUI" : "NON",
+    p.avis_theme || ""
+  ]);
   const csvContent = "data:text/csv;charset=utf-8,\uFEFF" + [headers.join(","), ...rows.map(e => e.map(val => `"${val}"`).join(","))].join("\n");
   const link = document.createElement("a");
   link.setAttribute("href", encodeURI(csvContent));
-  link.setAttribute("download", `participants-${new Date().toISOString().split('T')[0]}.csv`);
+  link.setAttribute("download", `participants-forum-2026.csv`);
   link.click();
 };

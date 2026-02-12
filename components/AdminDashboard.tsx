@@ -12,238 +12,296 @@ const AdminDashboard: React.FC = () => {
   const [selected, setSelected] = useState<Participant | null>(null);
   const [loading, setLoading] = useState(true);
   const [isLive, setIsLive] = useState(false);
+  const [dbStatus, setDbStatus] = useState<'connected' | 'error' | 'local'>('loading');
 
   const loadData = useCallback(async () => {
-    const data = await getParticipants();
-    const regStatus = await isRegistrationActive();
-    const sActive = await isScanSystemActive();
-    setParticipants(data);
-    setActive(regStatus);
-    setScanActive(sActive);
-    setLoading(false);
+    try {
+      setLoading(true);
+      console.log("Admin: Refreshing data...");
+      
+      const data = await getParticipants();
+      setParticipants(data);
+      
+      const regStatus = await isRegistrationActive();
+      const sActive = await isScanSystemActive();
+      setActive(regStatus);
+      setScanActive(sActive);
+
+      // Status DB
+      if (!supabase) setDbStatus('local');
+      else setDbStatus('connected');
+
+    } catch (err) {
+      console.error("Admin Load Error:", err);
+      setDbStatus('error');
+    } finally {
+      setLoading(false);
+    }
   }, []);
 
   useEffect(() => {
     loadData();
     const channel = subscribeToParticipants(() => {
+      console.log("Admin: Realtime update!");
       loadData();
     });
-    
     if (channel) setIsLive(true);
-
-    return () => { 
-      if (channel && supabase) {
-        supabase.removeChannel(channel);
-      }
-    };
+    return () => { if (channel && supabase) supabase.removeChannel(channel); };
   }, [loadData]);
 
   const handleDelete = async (id: string, name: string) => {
-    if (window.confirm(`Supprimer définitivement le participant ${name} ?`)) {
+    if (window.confirm(`Supprimer définitivement ${name} ?`)) {
       setLoading(true);
       await deleteParticipant(id);
       await loadData();
-      setLoading(false);
     }
   };
 
   const handleManualValidate = async (p: Participant) => {
-    if (p.scan_valide) return;
-    if (window.confirm(`Valider manuellement l'entrée de ${p.nom_complet} ?`)) {
+    if (window.confirm(`Valider manuellement ${p.nom_complet} ?`)) {
       setLoading(true);
       await validateTicket(p.id);
       await loadData();
-      setLoading(false);
     }
   };
 
   const filtered = participants.filter(p => 
     p.nom_complet.toLowerCase().includes(search.toLowerCase()) || 
-    p.numero_ticket.includes(search) ||
+    p.numero_ticket.toLowerCase().includes(search.toLowerCase()) ||
     p.adresse_email.toLowerCase().includes(search.toLowerCase())
   );
 
   return (
-    <div className="min-h-screen bg-assirou-navy text-white p-4 md:p-8 font-sans">
-      <div className="max-w-7xl mx-auto space-y-8">
+    <div className="min-h-screen bg-[#020817] text-slate-100 p-4 md:p-10 font-sans selection:bg-assirou-gold selection:text-assirou-navy">
+      <div className="max-w-[1400px] mx-auto space-y-10">
         
-        {/* HEADER & GLOBAL CONTROLS */}
-        <div className="flex flex-col lg:flex-row justify-between items-center bg-white/5 p-8 rounded-[3rem] border border-white/10 backdrop-blur-xl gap-8 shadow-2xl relative overflow-hidden">
-          <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-assirou-gold to-transparent opacity-30"></div>
+        {/* HEADER AREA */}
+        <div className="flex flex-col xl:flex-row justify-between items-start xl:items-center bg-white/5 p-10 rounded-[3rem] border border-white/10 backdrop-blur-xl gap-8 shadow-2xl relative overflow-hidden group">
+          <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-assirou-gold/50 via-assirou-gold to-transparent opacity-30"></div>
           
           <div className="flex items-center gap-6">
-            <div className="w-16 h-16 bg-white rounded-2xl flex items-center justify-center shadow-2xl rotate-3 shrink-0">
+            <div className="w-16 h-16 bg-white rounded-2xl flex items-center justify-center shadow-2xl group-hover:scale-105 transition-transform">
                <span className="text-assirou-navy font-black text-2xl">AS</span>
             </div>
             <div>
-              <div className="flex items-center gap-3">
-                <h1 className="text-2xl md:text-3xl font-black uppercase tracking-tighter">Tableau <span className="text-assirou-gold">de Bord</span></h1>
-                {isLive && <div className="flex items-center gap-1.5 bg-green-500/10 px-3 py-1 rounded-full border border-green-500/20"><span className="h-1.5 w-1.5 rounded-full bg-green-500 animate-pulse"></span><span className="text-[8px] font-black uppercase text-green-500">Live</span></div>}
+              <div className="flex flex-wrap items-center gap-3">
+                <h1 className="text-3xl font-black uppercase tracking-tighter">Soumissions <span className="text-assirou-gold">Participants</span></h1>
+                
+                {/* Status Badges */}
+                <div className="flex gap-2">
+                  {isLive && <div className="bg-green-500/10 px-3 py-1 rounded-full border border-green-500/20 flex items-center gap-1.5"><span className="h-1.5 w-1.5 rounded-full bg-green-500 animate-pulse"></span><span className="text-[8px] font-black uppercase text-green-500">Live</span></div>}
+                  {dbStatus === 'connected' ? (
+                    <div className="bg-blue-500/10 px-3 py-1 rounded-full border border-blue-500/20 text-blue-400 text-[8px] font-black uppercase flex items-center gap-1.5"><i className="fas fa-database"></i> Cloud</div>
+                  ) : (
+                    <div className="bg-orange-500/10 px-3 py-1 rounded-full border border-orange-500/20 text-orange-400 text-[8px] font-black uppercase flex items-center gap-1.5"><i className="fas fa-hdd"></i> Local Only</div>
+                  )}
+                </div>
               </div>
-              <p className="text-slate-400 text-[9px] font-bold uppercase tracking-[0.4em] mt-1">Gestion des Inscriptions • Forum 2026</p>
+              <p className="text-slate-500 text-[9px] font-bold uppercase tracking-[0.5em] mt-2">Forum Sécurité 2026 • Console d'administration</p>
             </div>
           </div>
           
-          <div className="flex flex-wrap gap-3 justify-center w-full lg:w-auto">
-            <button onClick={exportParticipantsToCSV} className="px-6 py-4 bg-white/5 rounded-2xl text-[9px] font-black uppercase border border-white/10 hover:bg-white/10 transition-all flex items-center gap-2">
-              <i className="fas fa-file-csv text-assirou-gold"></i> Export
+          <div className="flex flex-wrap gap-3 w-full xl:w-auto">
+            <button onClick={exportParticipantsToCSV} className="flex-1 xl:flex-none px-6 py-4 bg-white/5 rounded-2xl text-[10px] font-black uppercase border border-white/10 hover:bg-white/10 transition-all flex items-center justify-center gap-3">
+              <i className="fas fa-download text-assirou-gold"></i> Export CSV
             </button>
             <button 
               onClick={async () => { const s = !active; await setRegistrationStatus(s); setActive(s); }} 
-              className={`px-6 py-4 rounded-2xl text-[9px] font-black uppercase transition-all shadow-xl border-2 ${active ? 'bg-green-600/10 border-green-500 text-green-500' : 'bg-red-600/10 border-red-500 text-red-500'}`}
+              className={`flex-1 xl:flex-none px-6 py-4 rounded-2xl text-[10px] font-black uppercase transition-all border-2 ${active ? 'bg-green-600/10 border-green-500 text-green-500' : 'bg-red-600/10 border-red-500 text-red-500'}`}
             >
-              Inscriptions: {active ? 'Ouvertes' : 'Fermées'}
+              Statut: {active ? 'Ouvert' : 'Fermé'}
             </button>
-            <button 
-              onClick={async () => { const s = !scanActive; await setScanSystemStatus(s); setScanActive(s); }} 
-              className={`px-6 py-4 rounded-2xl text-[9px] font-black uppercase transition-all shadow-xl flex items-center justify-center gap-2 ${scanActive ? 'bg-assirou-gold text-assirou-navy' : 'bg-slate-700 text-slate-400'}`}
-            >
-              <i className="fas fa-qrcode"></i> Scan: {scanActive ? 'Actif' : 'Désactivé'}
+            <button onClick={loadData} className="w-14 h-14 bg-white/5 rounded-2xl flex items-center justify-center hover:bg-white/10 border border-white/10 transition-all">
+               <i className={`fas fa-sync-alt ${loading ? 'fa-spin text-assirou-gold' : ''}`}></i>
             </button>
           </div>
         </div>
 
-        {/* LISTING SECTION */}
-        <div className="bg-white/5 border border-white/10 rounded-[3rem] overflow-hidden backdrop-blur-md shadow-2xl">
-          <div className="p-6 md:p-10 border-b border-white/5 flex flex-col md:flex-row gap-8 items-center justify-between">
-            <div className="relative w-full md:w-96 group">
-              <i className="fas fa-search absolute left-6 top-1/2 -translate-y-1/2 text-slate-500 group-focus-within:text-assirou-gold transition-colors"></i>
-              <input 
-                placeholder="Chercher un participant..." 
-                className="w-full bg-white/5 border border-white/10 rounded-2xl pl-14 pr-6 py-4 outline-none focus:border-assirou-gold transition-all text-sm font-medium" 
-                value={search} 
-                onChange={e => setSearch(e.target.value)} 
-              />
-            </div>
-            
-            <div className="flex items-center gap-8">
-              <div className="text-right">
-                <p className="text-[8px] font-black uppercase text-slate-500 tracking-widest">Total Soumissions</p>
-                <p className="text-2xl font-black text-white leading-none">{participants.length}</p>
-              </div>
-              <button onClick={loadData} className="w-12 h-12 rounded-2xl bg-white/5 flex items-center justify-center hover:bg-white/10 transition-all border border-white/10">
-                <i className={`fas fa-sync-alt ${loading ? 'fa-spin' : ''}`}></i>
-              </button>
-            </div>
+        {/* STATS & SEARCH */}
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+          <div className="md:col-span-2 relative group">
+            <i className="fas fa-search absolute left-6 top-1/2 -translate-y-1/2 text-slate-600 group-focus-within:text-assirou-gold transition-colors"></i>
+            <input 
+              placeholder="Chercher une soumission (Nom, Email, Ticket)..." 
+              className="w-full bg-white/5 border border-white/10 rounded-2xl pl-16 pr-8 py-5 outline-none focus:border-assirou-gold/50 transition-all text-sm font-medium" 
+              value={search} 
+              onChange={e => setSearch(e.target.value)} 
+            />
           </div>
-          
-          <div className="overflow-x-auto">
-            <table className="w-full text-left">
-              <thead>
-                <tr className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] border-b border-white/5 bg-white/[0.02]">
-                  <th className="px-10 py-6">Soumissionnaire</th>
-                  <th className="px-10 py-6">Détails Soumission</th>
-                  <th className="px-10 py-6">Besoins</th>
-                  <th className="px-10 py-6">Statut</th>
-                  <th className="px-10 py-6 text-right">Action</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-white/5">
-                {filtered.map(p => (
-                  <tr key={p.id} className="group hover:bg-white/[0.03] transition-colors">
-                    <td className="px-10 py-6">
-                      <div className="font-black text-base group-hover:text-assirou-gold transition-colors">{p.nom_complet}</div>
-                      <div className="text-[10px] text-slate-500 font-bold uppercase tracking-wider mt-1">{p.numero_ticket}</div>
-                    </td>
-                    <td className="px-10 py-6">
-                       <p className="text-[11px] font-bold text-slate-300 truncate max-w-[200px]">
-                         {p.avis_theme ? p.avis_theme : <span className="text-slate-600 italic">Aucun avis saisi</span>}
-                       </p>
-                       <p className="text-[9px] text-slate-500 uppercase font-black mt-1">{p.organisation_entreprise || 'Particulier'}</p>
-                    </td>
-                    <td className="px-10 py-6">
-                       <div className="flex gap-2">
-                          <span className={`w-6 h-6 rounded-lg flex items-center justify-center text-[10px] ${p.souhait_formation === 'Oui' ? 'bg-green-500/20 text-green-500' : 'bg-white/5 text-white/20'}`} title="Formation">F</span>
-                          <span className={`w-6 h-6 rounded-lg flex items-center justify-center text-[10px] ${p.interet_services === 'Oui' ? 'bg-blue-500/20 text-blue-500' : 'bg-white/5 text-white/20'}`} title="Services">S</span>
-                       </div>
-                    </td>
-                    <td className="px-10 py-6">
-                      {p.scan_valide ? (
-                        <span className="text-green-500 text-[9px] font-black uppercase flex items-center gap-1"><i className="fas fa-check-circle"></i> Présent</span>
-                      ) : (
-                        <span className="text-slate-500 text-[9px] font-black uppercase flex items-center gap-1"><i className="fas fa-clock"></i> Inscrit</span>
-                      )}
-                    </td>
-                    <td className="px-10 py-6 text-right">
-                      <button onClick={() => setSelected(p)} className="w-10 h-10 bg-white/5 rounded-xl hover:bg-assirou-gold hover:text-assirou-navy transition-all border border-white/5"><i className="fas fa-expand-alt"></i></button>
-                    </td>
+          <div className="bg-white/5 p-6 rounded-2xl border border-white/10 flex flex-col justify-center">
+             <p className="text-[10px] font-black uppercase text-slate-500 tracking-widest mb-1">Total Inscrits</p>
+             <p className="text-3xl font-black text-white">{participants.length}</p>
+          </div>
+          <div className="bg-white/5 p-6 rounded-2xl border border-white/10 flex flex-col justify-center">
+             <p className="text-[10px] font-black uppercase text-slate-500 tracking-widest mb-1">Présence Réelle</p>
+             <p className="text-3xl font-black text-green-500">{participants.filter(p => p.scan_valide).length}</p>
+          </div>
+        </div>
+
+        {/* MAIN LISTING TABLE */}
+        <div className="bg-white/5 border border-white/10 rounded-[3rem] overflow-hidden backdrop-blur-md shadow-2xl relative min-h-[500px]">
+          {loading && participants.length === 0 ? (
+            <div className="absolute inset-0 flex flex-col items-center justify-center space-y-4">
+               <div className="w-16 h-16 border-4 border-assirou-gold border-t-transparent rounded-full animate-spin"></div>
+               <p className="text-[10px] font-black uppercase tracking-[0.5em] text-slate-500">Synchronisation des soumissions...</p>
+            </div>
+          ) : participants.length === 0 ? (
+            <div className="absolute inset-0 flex flex-col items-center justify-center p-12 text-center">
+               <div className="w-24 h-24 bg-white/5 rounded-[2rem] flex items-center justify-center text-slate-700 text-4xl mb-6">
+                  <i className="fas fa-clipboard-list"></i>
+               </div>
+               <h3 className="text-2xl font-black uppercase tracking-tighter mb-3">Aucune soumission trouvée</h3>
+               <p className="text-slate-500 text-sm max-w-sm mx-auto leading-relaxed">Le registre est actuellement vide. Les soumissions s'afficheront ici automatiquement dès qu'un participant s'inscrira via le formulaire public.</p>
+               <button onClick={loadData} className="mt-8 px-8 py-4 bg-white/10 rounded-2xl text-[10px] font-black uppercase hover:bg-white/20 transition-all">Actualiser la base</button>
+            </div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-left">
+                <thead>
+                  <tr className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] border-b border-white/5 bg-white/[0.02]">
+                    <th className="px-10 py-6">Participant & Ticket</th>
+                    <th className="px-10 py-6">Type & Orga</th>
+                    <th className="px-10 py-6">Contribution / Avis</th>
+                    <th className="px-10 py-6">Besoins / Intérêts</th>
+                    <th className="px-10 py-6">Validation</th>
+                    <th className="px-10 py-6 text-right">Détails</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+                </thead>
+                <tbody className="divide-y divide-white/5">
+                  {filtered.map(p => (
+                    <tr key={p.id} className="group hover:bg-white/[0.03] transition-colors">
+                      <td className="px-10 py-6">
+                        <div className="font-black text-base text-white group-hover:text-assirou-gold transition-colors">{p.nom_complet}</div>
+                        <div className="text-[10px] text-slate-500 font-bold mt-1 uppercase tracking-wider">{p.numero_ticket}</div>
+                        <div className="text-[9px] text-slate-600 font-medium mt-0.5">{p.adresse_email}</div>
+                      </td>
+                      <td className="px-10 py-6">
+                         <div className="text-[10px] font-black text-assirou-gold uppercase tracking-tighter mb-1">{p.participation}</div>
+                         <div className="text-xs font-bold text-slate-400 max-w-[150px] truncate">{p.organisation_entreprise || '—'}</div>
+                      </td>
+                      <td className="px-10 py-6 max-w-[250px]">
+                         <p className="text-[11px] font-medium text-slate-300 italic leading-relaxed line-clamp-2">
+                           {p.avis_theme ? `"${p.avis_theme}"` : <span className="text-slate-700">Aucun avis saisi</span>}
+                         </p>
+                      </td>
+                      <td className="px-10 py-6">
+                        <div className="flex flex-wrap gap-2">
+                           <span className={`px-2 py-1 rounded-md text-[9px] font-black uppercase ${p.souhait_formation === 'Oui' ? 'bg-green-500/20 text-green-500 border border-green-500/20' : 'bg-slate-800 text-slate-600'}`}>Form.</span>
+                           <span className={`px-2 py-1 rounded-md text-[9px] font-black uppercase ${p.interet_services === 'Oui' ? 'bg-blue-500/20 text-blue-400 border border-blue-500/20' : 'bg-slate-800 text-slate-600'}`}>Serv.</span>
+                        </div>
+                      </td>
+                      <td className="px-10 py-6">
+                        {p.scan_valide ? (
+                          <div className="inline-flex items-center gap-2 px-3 py-1.5 bg-green-500/10 border border-green-500/20 text-green-500 rounded-lg text-[9px] font-black uppercase">
+                            <i className="fas fa-check-double"></i> Présent
+                          </div>
+                        ) : (
+                          <button 
+                            onClick={() => handleManualValidate(p)}
+                            className="inline-flex items-center gap-2 px-3 py-1.5 bg-white/5 border border-white/10 text-slate-500 rounded-lg text-[9px] font-black uppercase hover:bg-assirou-gold hover:text-assirou-navy transition-all"
+                          >
+                            <i className="fas fa-user-clock"></i> Valider
+                          </button>
+                        )}
+                      </td>
+                      <td className="px-10 py-6 text-right">
+                        <div className="flex justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                          <button onClick={() => setSelected(p)} className="w-10 h-10 bg-white/5 rounded-xl hover:bg-assirou-navy border border-white/5 transition-all"><i className="fas fa-eye"></i></button>
+                          <button onClick={() => handleDelete(p.id, p.nom_complet)} className="w-10 h-10 bg-white/5 rounded-xl hover:bg-red-600 border border-white/5 text-red-500 hover:text-white transition-all"><i className="fas fa-trash-alt"></i></button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                  {filtered.length === 0 && participants.length > 0 && (
+                    <tr>
+                      <td colSpan={6} className="px-10 py-20 text-center text-slate-600 font-bold uppercase tracking-widest text-xs italic">
+                         Aucun résultat pour "{search}"
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          )}
         </div>
       </div>
 
-      {/* MODAL DOSSIER COMPLET */}
+      {/* DETAILED MODAL */}
       {selected && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-assirou-navy/95 backdrop-blur-2xl">
-          <div className="bg-[#001c4d] border border-white/10 rounded-[3.5rem] shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-hidden flex flex-col animate-in zoom-in-95 duration-300">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-2xl transition-all">
+          <div className="bg-[#0c111d] border border-white/10 rounded-[3.5rem] shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-hidden flex flex-col animate-in zoom-in-95 duration-300">
+            
+            {/* Modal Head */}
             <div className="p-10 border-b border-white/10 flex justify-between items-center bg-white/[0.02]">
               <div>
-                <h3 className="text-3xl font-black text-white uppercase tracking-tighter">{selected.nom_complet}</h3>
-                <p className="text-assirou-gold text-[10px] font-black uppercase tracking-widest mt-2">{selected.numero_ticket} • Inscrit le {new Date(selected.date_inscription).toLocaleDateString()}</p>
+                <div className="flex items-center gap-3 mb-2">
+                   <div className="px-3 py-1 bg-assirou-gold text-assirou-navy rounded-lg text-[10px] font-black uppercase">Dossier Complet</div>
+                   <span className="text-slate-500 text-[10px] font-black uppercase tracking-widest">{selected.numero_ticket}</span>
+                </div>
+                <h3 className="text-3xl font-black text-white uppercase tracking-tighter leading-none">{selected.nom_complet}</h3>
               </div>
-              <button onClick={() => setSelected(null)} className="w-14 h-14 rounded-2xl bg-white/5 flex items-center justify-center text-slate-400 hover:text-white transition-all">
+              <button onClick={() => setSelected(null)} className="w-14 h-14 rounded-2xl bg-white/5 flex items-center justify-center text-slate-500 hover:text-white transition-all border border-white/5">
                 <i className="fas fa-times text-2xl"></i>
               </button>
             </div>
 
-            <div className="flex-1 overflow-y-auto p-10 space-y-8 custom-scrollbar">
-              <div className="grid grid-cols-2 gap-6">
-                <div className="p-6 bg-white/5 rounded-3xl border border-white/5">
-                  <p className="text-[9px] font-black text-slate-500 uppercase mb-2 tracking-widest">Contact & Identité</p>
-                  <p className="text-sm font-bold text-white mb-1">{selected.adresse_email}</p>
-                  <p className="text-sm font-bold text-white mb-3">{selected.telephone}</p>
-                  <p className="text-[10px] font-black text-assirou-gold uppercase">{selected.sexe}</p>
+            {/* Modal Body */}
+            <div className="flex-1 overflow-y-auto p-10 space-y-10 custom-scrollbar">
+              
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div className="p-6 bg-white/5 rounded-3xl border border-white/5 space-y-4">
+                  <p className="text-[10px] font-black text-assirou-gold uppercase tracking-[0.2em]">Coordonnées</p>
+                  <div className="space-y-2">
+                    <p className="text-sm font-bold text-white flex items-center gap-3"><i className="fas fa-envelope text-slate-600 w-4"></i> {selected.adresse_email}</p>
+                    <p className="text-sm font-bold text-white flex items-center gap-3"><i className="fas fa-phone text-slate-600 w-4"></i> {selected.telephone}</p>
+                    <p className="text-[10px] font-black text-white bg-white/10 px-2 py-1 rounded w-fit mt-2 uppercase">{selected.sexe}</p>
+                  </div>
                 </div>
-                <div className="p-6 bg-white/5 rounded-3xl border border-white/5">
-                  <p className="text-[9px] font-black text-slate-500 uppercase mb-2 tracking-widest">Profil Professionnel</p>
-                  <p className="text-sm font-bold text-white mb-1">{selected.organisation_entreprise || 'Personnel'}</p>
-                  <p className="text-sm font-bold text-white mb-1">{selected.fonction || 'Non renseigné'}</p>
-                  <p className="text-[10px] font-black text-assirou-gold uppercase">{selected.participation}</p>
-                </div>
-              </div>
-
-              <div className="p-8 bg-assirou-gold/5 rounded-[2.5rem] border border-assirou-gold/10">
-                 <p className="text-[9px] text-assirou-gold font-black uppercase tracking-widest mb-4">Avis sur le thème du Forum :</p>
-                 <p className="text-base font-medium text-slate-200 leading-relaxed italic">
-                   {selected.avis_theme ? `"${selected.avis_theme}"` : "Le participant n'a pas laissé d'avis sur le thème."}
-                 </p>
-              </div>
-
-              <div className="grid grid-cols-2 gap-6">
-                <div className="p-6 bg-white/5 rounded-3xl border border-white/5">
-                   <p className="text-[9px] font-black text-slate-500 uppercase mb-3 tracking-widest">Intérêt Formations</p>
-                   {selected.souhait_formation === 'Oui' && selected.type_formation?.length ? (
-                     <div className="flex flex-wrap gap-2">
-                        {selected.type_formation.map(f => <span key={f} className="px-2 py-1 bg-assirou-gold/20 text-assirou-gold rounded text-[9px] font-black uppercase">{f}</span>)}
-                     </div>
-                   ) : <span className="text-xs text-slate-600">Aucun intérêt</span>}
-                </div>
-                <div className="p-6 bg-white/5 rounded-3xl border border-white/5">
-                   <p className="text-[9px] font-black text-slate-500 uppercase mb-3 tracking-widest">Besoins Services</p>
-                   {selected.interet_services === 'Oui' && selected.services_interesses?.length ? (
-                     <div className="flex flex-wrap gap-2">
-                        {selected.services_interesses.map(s => <span key={s} className="px-2 py-1 bg-blue-500/20 text-blue-400 rounded text-[9px] font-black uppercase">{s}</span>)}
-                     </div>
-                   ) : <span className="text-xs text-slate-600">Aucun besoin</span>}
+                <div className="p-6 bg-white/5 rounded-3xl border border-white/5 space-y-4">
+                  <p className="text-[10px] font-black text-assirou-gold uppercase tracking-[0.2em]">Parcours</p>
+                  <div className="space-y-2">
+                    <p className="text-sm font-bold text-white">{selected.organisation_entreprise || 'Personnel'}</p>
+                    <p className="text-xs font-medium text-slate-400">{selected.fonction || 'Non renseigné'}</p>
+                    <p className="text-[10px] font-black text-white bg-assirou-gold/20 px-2 py-1 rounded w-fit mt-2 uppercase">{selected.participation}</p>
+                  </div>
                 </div>
               </div>
 
-              <div className="p-6 bg-white/5 rounded-3xl border border-white/5">
-                 <p className="text-[9px] font-black text-slate-500 uppercase mb-3 tracking-widest">Comment il nous a connu</p>
-                 <div className="flex flex-wrap gap-2">
-                    {selected.canal_forum?.map(c => <span key={c} className="px-3 py-1 bg-white/10 rounded-full text-[9px] font-black uppercase text-white/50">{c}</span>)}
+              <div className="space-y-4">
+                 <p className="text-[10px] font-black text-assirou-gold uppercase tracking-[0.2em]">Contribution intellectuelle</p>
+                 <div className="p-8 bg-assirou-gold/5 rounded-[2.5rem] border border-assirou-gold/10 relative">
+                    <i className="fas fa-quote-left absolute top-6 left-6 text-assirou-gold/10 text-4xl"></i>
+                    <p className="text-base font-medium text-slate-200 leading-relaxed italic pl-6 relative z-10">
+                      {selected.avis_theme ? `"${selected.avis_theme}"` : "Aucun avis formulé."}
+                    </p>
                  </div>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div className="p-6 bg-white/5 rounded-3xl border border-white/5 space-y-4">
+                   <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Intérêt Formations</p>
+                   {selected.souhait_formation === 'Oui' ? (
+                     <div className="flex flex-wrap gap-2">
+                        {selected.type_formation?.map(f => <span key={f} className="px-3 py-1.5 bg-assirou-navy border border-white/10 rounded-xl text-[9px] font-black text-white uppercase">{f}</span>)}
+                     </div>
+                   ) : <span className="text-xs text-slate-600 italic">Pas d'intérêt</span>}
+                </div>
+                <div className="p-6 bg-white/5 rounded-3xl border border-white/5 space-y-4">
+                   <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Besoins Services</p>
+                   {selected.interet_services === 'Oui' ? (
+                     <div className="flex flex-wrap gap-2">
+                        {selected.services_interesses?.map(s => <span key={s} className="px-3 py-1.5 bg-blue-500/20 border border-blue-500/20 rounded-xl text-[9px] font-black text-blue-400 uppercase">{s}</span>)}
+                     </div>
+                   ) : <span className="text-xs text-slate-600 italic">Pas de besoin</span>}
+                </div>
               </div>
             </div>
 
-            <div className="p-10 border-t border-white/10 bg-black/20 flex gap-4">
-              <button onClick={() => setSelected(null)} className="flex-1 py-5 rounded-2xl bg-white/5 font-black text-xs uppercase tracking-widest hover:bg-white/10 transition-all">Fermer</button>
-              <button onClick={() => handleDelete(selected.id, selected.nom_complet)} className="px-6 py-5 rounded-2xl bg-red-600/10 text-red-500 font-black text-xs uppercase tracking-widest hover:bg-red-600 hover:text-white transition-all"><i className="fas fa-trash-alt"></i></button>
-              <button onClick={() => openMailClient(selected)} className="flex-[1.5] py-5 rounded-2xl bg-assirou-gold text-assirou-navy font-black text-xs uppercase tracking-widest hover:brightness-110 transition-all flex items-center justify-center gap-3">
-                <i className="fas fa-envelope"></i> Contacter
+            {/* Modal Foot */}
+            <div className="p-10 border-t border-white/10 bg-black/20 flex flex-col md:flex-row gap-4">
+              <button onClick={() => setSelected(null)} className="flex-1 py-5 rounded-2xl bg-white/5 font-black text-xs uppercase tracking-widest hover:bg-white/10 transition-all">Fermer le dossier</button>
+              <button onClick={() => openMailClient(selected)} className="flex-[1.5] py-5 rounded-2xl bg-assirou-gold text-assirou-navy font-black text-xs uppercase tracking-widest hover:brightness-110 transition-all flex items-center justify-center gap-3 shadow-xl">
+                <i className="fas fa-envelope"></i> Contacter par email
               </button>
             </div>
           </div>
