@@ -10,16 +10,13 @@ export default defineConfig({
     'process.env.SUPABASE_ANON_KEY': JSON.stringify(process.env.SUPABASE_ANON_KEY || ''),
     'process.env.RESEND_API_KEY': JSON.stringify(process.env.RESEND_API_KEY || '')
   },
+  server: {
+    port: 3000,
+    host: true
+  },
   build: {
     outDir: 'dist',
     sourcemap: false,
-    rollupOptions: {
-      output: {
-        manualChunks: {
-          vendor: ['react', 'react-dom', 'react-router-dom'],
-          utils: ['jspdf', 'html-to-image', '@supabase/supabase-js']
-        }
-      }
-    }
+    chunkSizeWarningLimit: 1600
   }
 });
