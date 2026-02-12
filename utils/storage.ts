@@ -5,7 +5,6 @@ import { Participant } from '../types';
 const supabaseUrl = process.env.SUPABASE_URL || '';
 const supabaseAnonKey = process.env.SUPABASE_ANON_KEY || '';
 
-// Initialisation sécurisée : on ne crée le client que si les clés sont présentes et valides
 export const supabase: SupabaseClient | null = (supabaseUrl && supabaseAnonKey && supabaseUrl.startsWith('http'))
   ? createClient(supabaseUrl, supabaseAnonKey)
   : null;
@@ -38,13 +37,13 @@ export const getParticipants = async (): Promise<Participant[]> => {
         .select('*')
         .order('date_inscription', { ascending: false });
       if (!error) remoteData = data || [];
-    } catch (e) { console.warn("Supabase query failed, falling back to local storage"); }
+    } catch (e) { console.warn("Supabase query failed"); }
   }
 
   const localData = getFromLocal();
   const combined = [...remoteData];
   localData.forEach(lp => {
-    if (!combined.some(rp => rp.numero_ticket === lp.numero_ticket)) {
+    if (!combined.some(rp => rp.id === lp.id || rp.numero_ticket === lp.numero_ticket)) {
       combined.push(lp);
     }
   });
@@ -73,22 +72,12 @@ export const getParticipantByTicket = async (ticketInput: string): Promise<Parti
 
 export const getParticipantByToken = async (token: string): Promise<Participant | null> => {
   if (!token) return null;
-  
   if (supabase) {
     try {
-      const { data, error } = await supabase
-        .from('participants')
-        .select('*')
-        .eq('token', token)
-        .maybeSingle();
-      
-      if (!error && data) return data as Participant;
-    } catch (e) {
-      console.error("Supabase search error:", e);
-    }
+      const { data } = await supabase.from('participants').select('*').eq('token', token).maybeSingle();
+      if (data) return data as Participant;
+    } catch (e) {}
   }
-
-  // Fallback local (utile si on scanne sur le même appareil que l'inscription)
   return getFromLocal().find(p => p.token === token) || null;
 };
 
@@ -106,14 +95,13 @@ export const validateTicket = async (id: string): Promise<boolean> => {
     } catch (e) { success = false; }
   }
   
-  // Toujours mettre à jour localement pour la cohérence
   const local = getFromLocal();
   const idx = local.findIndex(p => p.id === id);
   if (idx !== -1) {
     local[idx].scan_valide = true;
     local[idx].date_validation = now;
     localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(local));
-    if (!supabase) success = true; // On considère l'opération réussie localement si pas de DB
+    if (!supabase) success = true;
   }
   
   return success;
@@ -127,10 +115,7 @@ export const saveParticipant = async (participantData: Omit<Participant, 'id' | 
     try {
       const { error } = await supabase.from('participants').insert([newParticipant]);
       if (!error) return true;
-      throw error;
-    } catch (e) {
-      console.warn("Database insert failed, using local backup:", e);
-    }
+    } catch (e) {}
   }
   
   const tempId = 'ID_' + Math.random().toString(36).substr(2, 9);
@@ -146,7 +131,6 @@ export const deleteParticipant = async (id: string): Promise<boolean> => {
       success = !error;
     } catch (e) {}
   }
-  
   const local = getFromLocal().filter(p => p.id !== id);
   localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(local));
   return success || !supabase;
@@ -203,28 +187,23 @@ export const setScanSystemStatus = async (active: boolean): Promise<void> => {
 
 export const subscribeToParticipants = (callback: () => void) => {
   if (!supabase) return null;
-  return supabase.channel('any').on('postgres_changes', { event: '*', schema: 'public', table: 'participants' }, callback).subscribe();
+  // Utilisation d'un canal nommé spécifique pour forcer le rafraîchissement
+  return supabase
+    .channel('realtime_participants')
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'participants' }, () => {
+      console.log("Realtime update received!");
+      callback();
+    })
+    .subscribe();
 };
 
 export const exportParticipantsToCSV = async () => {
   const participants = await getParticipants();
-  const headers = ["ID", "Nom Complet", "Email", "Telephone", "Organisation", "Type Participation", "Numero Ticket", "Token Scan", "Date Inscription", "Scan Valide", "Date Validation"];
-  const rows = participants.map(p => [
-    p.id, 
-    p.nom_complet, 
-    p.adresse_email, 
-    p.telephone, 
-    p.organisation_entreprise || 'N/A', 
-    p.participation, 
-    p.numero_ticket,
-    p.token,
-    p.date_inscription, 
-    p.scan_valide ? "OUI" : "NON", 
-    p.date_validation || 'N/A'
-  ]);
+  const headers = ["ID", "Nom Complet", "Email", "Telephone", "Organisation", "Type Participation", "Numero Ticket", "Date Inscription", "Valide"];
+  const rows = participants.map(p => [p.id, p.nom_complet, p.adresse_email, p.telephone, p.organisation_entreprise || 'N/A', p.participation, p.numero_ticket, p.date_inscription, p.scan_valide ? "OUI" : "NON"]);
   const csvContent = "data:text/csv;charset=utf-8,\uFEFF" + [headers.join(","), ...rows.map(e => e.map(val => `"${val}"`).join(","))].join("\n");
   const link = document.createElement("a");
   link.setAttribute("href", encodeURI(csvContent));
-  link.setAttribute("download", `export-participants-${new Date().toISOString().split('T')[0]}.csv`);
+  link.setAttribute("download", `participants-${new Date().toISOString().split('T')[0]}.csv`);
   link.click();
 };
