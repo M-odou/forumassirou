@@ -1,40 +1,34 @@
 
-import React, { useState, useEffect } from 'react';
+import React from 'react';
 import { Participant } from '../types';
-import { isScanSystemActive } from '../utils/storage';
 
 interface TicketCardProps {
   participant: Participant;
 }
 
 const TicketCard: React.FC<TicketCardProps> = ({ participant }) => {
-  const [scanActive, setScanActive] = useState(true);
-
-  useEffect(() => {
-    isScanSystemActive().then(setScanActive);
-  }, []);
-
   const baseUrl = window.location.origin + window.location.pathname;
   const cleanBase = baseUrl.endsWith('/') ? baseUrl.slice(0, -1) : baseUrl;
   const validationUrl = `${cleanBase}/#/ticket/${participant.numero_ticket}`;
   
-  // Correction QR : Utilisation d'une URL de base propre et paramètre CORS
+  // Utilisation de qrserver.com avec crossOrigin pour html-to-image
   const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=400x400&data=${encodeURIComponent(validationUrl)}&color=002157&bgcolor=ffffff&qzone=1&ecc=H`;
 
   return (
     <div className="relative w-full max-w-[440px] mx-auto group">
-      <div className="absolute -inset-1 bg-gradient-to-r from-assirou-gold/20 via-assirou-navy/10 to-assirou-gold/20 rounded-[3rem] blur-xl opacity-50 group-hover:opacity-100 transition duration-1000 group-hover:duration-200"></div>
+      {/* Background glow */}
+      <div className="absolute -inset-1 bg-gradient-to-r from-assirou-gold/20 via-assirou-navy/10 to-assirou-gold/20 rounded-[3rem] blur-xl opacity-50"></div>
       
-      <div id="badge-capture" className="relative bg-white rounded-[3rem] shadow-[0_30px_60px_-15px_rgba(0,33,87,0.4)] overflow-hidden border border-slate-100 flex flex-col transition-all duration-500 hover:translate-y-[-5px]">
+      {/* Container de capture forcé sans overflow-hidden pour éviter les coupures */}
+      <div id="badge-capture" className="relative bg-white rounded-[3rem] shadow-2xl border border-slate-100 flex flex-col transition-all duration-500 overflow-visible min-h-[600px]">
         
-        <div className="relative h-48 bg-assirou-navy flex items-center px-10 overflow-hidden">
+        {/* HEADER */}
+        <div className="relative h-48 bg-assirou-navy flex items-center px-10 rounded-t-[3rem] overflow-hidden">
           <div className="absolute inset-0 opacity-30 mix-blend-overlay bg-[url('https://www.transparenttextures.com/patterns/carbon-fibre.png')]"></div>
-          <div className="absolute inset-0 bg-gradient-to-tr from-transparent via-white/5 to-transparent rotate-12 -translate-x-full group-hover:translate-x-full transition-transform duration-1000 ease-in-out"></div>
-          
           <div className="relative z-10 w-full flex justify-between items-start">
             <div className="space-y-4">
               <div className="flex items-center gap-3">
-                <div className="w-10 h-10 bg-assirou-gold rounded-xl flex items-center justify-center shadow-[0_0_25px_rgba(197,160,34,0.4)]">
+                <div className="w-10 h-10 bg-assirou-gold rounded-xl flex items-center justify-center shadow-lg">
                    <i className="fas fa-shield-halved text-assirou-navy text-lg"></i>
                 </div>
                 <div className="leading-none">
@@ -46,27 +40,27 @@ const TicketCard: React.FC<TicketCardProps> = ({ participant }) => {
                 Forum Métiers <br/><span className="text-assirou-gold">Sécurité 2026</span>
               </h2>
             </div>
-            <div className="w-14 h-11 bg-gradient-to-br from-yellow-300 via-yellow-600 to-yellow-800 rounded-lg shadow-inner relative overflow-hidden border border-white/20">
+            <div className="w-14 h-11 bg-gradient-to-br from-yellow-300 via-yellow-600 to-yellow-800 rounded-lg shadow-inner relative border border-white/20">
                <div className="absolute inset-0 grid grid-cols-3 grid-rows-3 opacity-30">
                  {[...Array(9)].map((_, i) => <div key={i} className="border border-black/20"></div>)}
                </div>
-               <div className="absolute inset-2 border-l border-t border-black/10 rounded-sm"></div>
             </div>
           </div>
         </div>
 
-        <div className="p-10 pt-12 relative">
+        {/* BODY */}
+        <div className="p-10 pt-12 relative flex-1">
           <div className="absolute top-0 right-10 -translate-y-1/2 bg-white px-6 py-2 rounded-full shadow-lg border border-slate-50 flex items-center gap-2">
              <div className={`w-2 h-2 rounded-full ${participant.scan_valide ? 'bg-green-500' : 'bg-assirou-gold'} animate-pulse`}></div>
              <span className="text-[10px] font-black uppercase tracking-widest text-assirou-navy">{participant.participation}</span>
           </div>
 
           <div className="mb-10 text-center">
-            <p className="text-[10px] font-black text-slate-300 uppercase tracking-[0.5em] mb-4">Détenteur Autorisé</p>
+            <p className="text-[10px] font-black text-slate-300 uppercase tracking-[0.5em] mb-4">Porteur Officiel</p>
             <h3 className="text-4xl font-black text-assirou-navy uppercase tracking-tighter leading-none mb-2 break-words">
               {participant.nom_complet}
             </h3>
-            <p className="text-assirou-gold text-xs font-black uppercase tracking-widest">{participant.organisation_entreprise || 'Participant Individuel'}</p>
+            <p className="text-assirou-gold text-xs font-black uppercase tracking-widest">{participant.organisation_entreprise || 'Participant individuel'}</p>
           </div>
 
           <div className="flex items-center gap-4 mb-10">
@@ -82,10 +76,11 @@ const TicketCard: React.FC<TicketCardProps> = ({ participant }) => {
             </div>
             <div className="text-right">
               <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">Zone</p>
-              <p className="text-sm font-black text-assirou-navy uppercase">CSC THIAROYE</p>
+              <p className="text-sm font-black text-assirou-navy uppercase">THIAROYE / MER</p>
             </div>
           </div>
 
+          {/* FOOTER AVEC QR CODE */}
           <div className="flex items-end justify-between gap-6 pt-10 border-t-2 border-dashed border-slate-100">
             <div className="space-y-4">
               <div>
@@ -94,39 +89,26 @@ const TicketCard: React.FC<TicketCardProps> = ({ participant }) => {
               </div>
               <div className="flex items-center gap-2">
                 <i className={`fas ${participant.scan_valide ? 'fa-check-double text-green-500' : 'fa-check-circle text-slate-200'} text-lg`}></i>
-                <div className="leading-none">
-                  <span className={`block text-[8px] font-black uppercase tracking-widest ${participant.scan_valide ? 'text-green-600' : 'text-assirou-navy'}`}>
-                    {participant.scan_valide ? 'PASS VALIDÉ' : 'Identité Certifiée'}
-                  </span>
-                  <span className="block text-[7px] font-bold text-slate-400 uppercase">Système Assirou 2.0</span>
-                </div>
+                <span className={`text-[8px] font-black uppercase tracking-widest ${participant.scan_valide ? 'text-green-600' : 'text-assirou-navy'}`}>
+                  {participant.scan_valide ? 'PASS VALIDÉ PAR ASSIROU' : 'IDENTITÉ CERTIFIÉE'}
+                </span>
               </div>
             </div>
 
-            <div className="relative group/qr">
-              {scanActive ? (
-                <div className="bg-white p-3 rounded-2xl shadow-xl border border-slate-100">
-                  <img 
-                    src={qrUrl} 
-                    alt="Validation QR" 
-                    className="w-24 h-24" 
-                    crossOrigin="anonymous" 
-                    loading="eager"
-                  />
-                </div>
-              ) : (
-                <div className="w-24 h-24 bg-slate-50 border border-slate-100 rounded-2xl flex flex-col items-center justify-center text-slate-300">
-                   <i className="fas fa-qrcode-slash text-2xl mb-1"></i>
-                   <span className="text-[8px] font-black uppercase text-center">Scan<br/>Désactivé</span>
-                </div>
-              )}
+            <div className="bg-white p-3 rounded-2xl shadow-xl border border-slate-100">
+               <img 
+                src={qrUrl} 
+                alt="QR Code" 
+                className="w-28 h-28 block" 
+                crossOrigin="anonymous" 
+                loading="eager"
+               />
             </div>
           </div>
         </div>
 
-        <div className="h-6 bg-assirou-navy flex items-center justify-center relative overflow-hidden">
-          <div className="absolute inset-0 opacity-40 bg-[url('https://www.transparenttextures.com/patterns/carbon-fibre.png')]"></div>
-          <p className="relative z-10 text-[8px] font-black text-white/40 uppercase tracking-[1.5em] ml-4">CONFIDENTIEL • ASSIROU SÉCURITÉ</p>
+        <div className="h-6 bg-assirou-navy rounded-b-[3rem] flex items-center justify-center relative overflow-hidden">
+          <p className="relative z-10 text-[8px] font-black text-white/40 uppercase tracking-[1em]">ASSIROU SÉCURITÉ • KAARANGE BI</p>
         </div>
       </div>
     </div>
