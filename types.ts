@@ -2,9 +2,11 @@
 export interface Participant {
   id: string;
   nom_complet: string;
+  sexe: 'Homme' | 'Femme';
   adresse_email: string;
   telephone: string;
   organisation_entreprise: string;
+  fonction: string;
   participation: "Individuel" | "Représentant d'une entreprise" | "Professionnel de la sécurité" | "Étudiant / Chercheur" | "Autre";
   avis_theme?: string;
   canal_forum: string[];

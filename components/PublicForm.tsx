@@ -7,7 +7,7 @@ import { sendConfirmationEmail } from '../services/mailService';
 
 const CANAUX_FORUM = ["Facebook", "Youtube", "Tiktok", "Siteweb", "Instagram", "Média", "Bouche à oreille"];
 const CANAUX_ASSIROU = ["Réseaux Sociaux", "Site Web Officiel", "Ancien Client", "Recommandation", "Publicité", "Autre"];
-const PARTICIPATIONS = ["Individuel", "Représentant d'une entreprise", "Professionnel de la sécurité", "Étudiant / Chercheur"];
+const PARTICIPATIONS = ["Individuel", "Représentant d'une entreprise", "Professionnel de la sécurité", "Étudiant / Chercheur", "Autre"];
 const FORMATIONS_LIST = ["CQP-ASP", "SSIAP 1", "SSIAP 2", "SST", "APR (Garde du corps)", "Agent Stadier", "Télésurveillance"];
 const SERVICES_LIST = ["Gardiennage", "Protection Rapprochée", "Sécurité Événementielle", "Audit & Conseil", "Télésurveillance", "Maître-chien", "Vente d'équipement"];
 
@@ -21,9 +21,11 @@ const PublicForm: React.FC = () => {
   
   const [formData, setFormData] = useState<Partial<Participant>>({
     nom_complet: '',
+    sexe: 'Homme',
     adresse_email: '',
     telephone: '',
     organisation_entreprise: '',
+    fonction: '',
     participation: 'Individuel',
     avis_theme: '',
     canal_forum: [],
@@ -44,13 +46,17 @@ const PublicForm: React.FC = () => {
 
   const nextStep = () => {
     if (step === 1 && (!formData.nom_complet || !formData.adresse_email || !formData.telephone)) {
-      alert("Veuillez remplir les champs obligatoires.");
+      alert("Veuillez remplir les champs obligatoires d'identité.");
       return;
     }
     setStep(prev => Math.min(prev + 1, 5));
+    window.scrollTo({ top: 0, behavior: 'smooth' });
   };
   
-  const prevStep = () => setStep(prev => Math.max(prev - 1, 1));
+  const prevStep = () => {
+    setStep(prev => Math.max(prev - 1, 1));
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
 
   const toggleSelection = (field: keyof Participant, value: string) => {
     const current = (formData[field] as string[]) || [];
@@ -60,21 +66,12 @@ const PublicForm: React.FC = () => {
     setFormData({ ...formData, [field]: next });
   };
 
-  const handleYesNoChange = (field: 'souhait_formation' | 'interet_services', value: 'Oui' | 'Non') => {
-    const subField = field === 'souhait_formation' ? 'type_formation' : 'services_interesses';
-    setFormData({ 
-      ...formData, 
-      [field]: value,
-      [subField]: value === 'Non' ? [] : (formData[subField] || []) 
-    });
-  };
-
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!isActive || !confirmed || step < 5) return;
+    if (!isActive || !confirmed) return;
     
     setLoading(true);
-    setLoadingMsg('Génération du badge...');
+    setLoadingMsg('Génération de votre badge premium...');
 
     try {
       const ticketNum = await generateTicketNumber();
@@ -88,30 +85,26 @@ const PublicForm: React.FC = () => {
       const saved = await saveParticipant(participantToSave);
       
       if (saved) {
-        setLoadingMsg('Finalisation...');
-        // On tente l'email mais on n'attend pas forcément le succès pour rediriger
-        sendConfirmationEmail({ ...participantToSave, id: 'temp' } as Participant).catch(e => console.error("Mail failed"));
-        
+        setLoadingMsg('Finalisation et envoi du mail...');
+        sendConfirmationEmail({ ...participantToSave, id: 'temp' } as Participant).catch(() => {});
         setTimeout(() => navigate(`/ticket/${ticketNum}`), 1500);
-      } else {
-        throw new Error("Erreur de sauvegarde");
       }
     } catch (error) {
-      console.error("Submit error:", error);
-      alert("Une erreur technique est survenue, mais vos données ont été sauvegardées localement. Vous allez être redirigé vers votre badge.");
-      // Forcer la redirection même si erreur car le storage.ts s'est occupé du fallback
-      navigate(`/admin`); 
+      console.error(error);
+      alert("Une erreur est survenue lors de l'enregistrement.");
+    } finally {
       setLoading(false);
     }
   };
 
   if (!isActive) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-assirou-navy text-white p-10 text-center">
-        <div className="bg-white p-12 rounded-[3rem] shadow-2xl max-w-md text-assirou-navy">
-           <i className="fas fa-calendar-times text-4xl text-red-500 mb-6"></i>
-           <h2 className="text-2xl font-black mb-4 uppercase">Inscriptions Closes</h2>
-           <p className="text-slate-500 mb-8">Les inscriptions pour le Forum 2026 sont terminées.</p>
+      <div className="min-h-screen flex items-center justify-center bg-assirou-navy p-6">
+        <div className="bg-white p-12 rounded-[3rem] shadow-2xl max-w-md text-center">
+           <i className="fas fa-lock text-4xl text-red-500 mb-6"></i>
+           <h2 className="text-2xl font-black uppercase text-assirou-navy tracking-tighter">Inscriptions Closes</h2>
+           <p className="text-slate-500 mt-4 font-medium">Le portail d'inscription au forum est actuellement fermé.</p>
+           <button onClick={() => window.location.reload()} className="mt-8 px-8 py-4 bg-slate-100 rounded-2xl font-black text-[10px] uppercase tracking-widest text-slate-600 hover:bg-assirou-gold hover:text-navy transition-all">Actualiser</button>
         </div>
       </div>
     );
@@ -119,133 +112,258 @@ const PublicForm: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-slate-50 text-assirou-navy pb-24 font-sans">
+      {/* Barre de progression fixe */}
       <div className="fixed top-0 left-0 w-full h-2 bg-slate-200 z-50">
-        <div className="h-full bg-assirou-gold transition-all duration-500 ease-out" style={{ width: `${(step/5)*100}%` }}></div>
+        <div className="h-full bg-assirou-gold transition-all duration-500 ease-out shadow-[0_0_10px_#C5A022]" style={{ width: `${(step/5)*100}%` }}></div>
       </div>
 
-      <div className="assirou-gradient w-full py-16 text-center text-white px-6 relative overflow-hidden">
-        <div className="absolute inset-0 opacity-10 bg-[url('https://www.transparenttextures.com/patterns/carbon-fibre.png')]"></div>
-        <div className="relative z-10">
-          <div className="w-16 h-16 bg-white rounded-full flex items-center justify-center mx-auto mb-6 shadow-2xl border-4 border-assirou-gold">
-             <img src="https://api.dicebear.com/7.x/initials/svg?seed=AS&backgroundColor=002157" alt="Logo" className="w-10 h-10 rounded-full" />
+      {/* Header avec pattern fibre de carbone */}
+      <div className="assirou-gradient w-full py-24 text-center text-white px-6 relative overflow-hidden">
+        <div className="absolute inset-0 opacity-15 bg-[url('https://www.transparenttextures.com/patterns/carbon-fibre.png')]"></div>
+        <div className="relative z-10 animate-in fade-in duration-1000">
+          <div className="w-24 h-24 bg-white rounded-full flex items-center justify-center mx-auto mb-8 shadow-2xl border-4 border-assirou-gold transform hover:rotate-12 transition-transform cursor-pointer">
+             <i className="fas fa-shield-halved text-assirou-navy text-4xl"></i>
           </div>
-          <h1 className="text-xl md:text-3xl font-black uppercase max-w-3xl mx-auto leading-tight mb-4 tracking-tighter">
-            DEUXIÈME FORUM SUR LES MÉTIERS DE LA SÉCURITÉ PRIVÉE AU SÉNÉGAL
+          <p className="text-[10px] font-black uppercase tracking-[0.5em] text-assirou-gold mb-4">Assirou Sécurité présente</p>
+          <h1 className="text-3xl md:text-6xl font-black uppercase max-w-4xl mx-auto leading-[0.9] mb-8 tracking-tighter drop-shadow-lg">
+            FORUM SUR LES MÉTIERS DE LA SÉCURITÉ PRIVÉE
           </h1>
-          <div className="flex flex-wrap justify-center gap-4 text-[10px] font-black tracking-[0.2em] uppercase">
-            <span className="bg-white/10 px-6 py-2 rounded-xl border border-white/5 backdrop-blur-md">05 Mars 2026</span>
-            <span className="bg-assirou-gold text-assirou-navy px-6 py-2 rounded-xl shadow-lg font-black">10h00 - 16h00</span>
-            <span className="bg-white/10 px-6 py-2 rounded-xl border border-white/5 backdrop-blur-md">CSC Thiaroye sur Mer</span>
+          <div className="flex flex-wrap justify-center gap-4 text-xs font-black tracking-[0.2em] uppercase">
+            <span className="bg-white/10 px-8 py-3 rounded-2xl border border-white/5 backdrop-blur-md">SÉNÉGAL • 05 MARS 2026</span>
+            <span className="bg-assirou-gold text-assirou-navy px-8 py-3 rounded-2xl shadow-xl">CSC Thiaroye sur Mer</span>
           </div>
         </div>
       </div>
 
-      <div className="max-w-2xl mx-auto px-6 -mt-10 relative z-20">
-        <div className="bg-white rounded-[2.5rem] shadow-2xl p-8 md:p-12 border border-slate-100">
-          <div className="mb-10 flex justify-between items-center">
-            <span className="text-[10px] font-black uppercase tracking-[0.3em] text-slate-400">Étape {step} / 5</span>
-            <div className="flex gap-2">
-              {[1,2,3,4,5].map(s => (
-                <div key={s} className={`w-2 h-2 rounded-full transition-all duration-300 ${step >= s ? 'bg-assirou-gold scale-125' : 'bg-slate-100'}`}></div>
-              ))}
-            </div>
-          </div>
-
-          <form onSubmit={handleSubmit} className="space-y-8">
+      <div className="max-w-2xl mx-auto px-6 -mt-12 relative z-20">
+        <div className="bg-white rounded-[4rem] shadow-2xl p-10 md:p-16 border border-slate-100">
+          
+          <form onSubmit={handleSubmit} className="space-y-12">
+            
+            {/* ÉTAPE 1 : IDENTITÉ */}
             {step === 1 && (
-              <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
-                <h2 className="text-2xl font-black text-assirou-navy border-l-6 border-assirou-gold pl-5">Identité & Contact</h2>
-                <div className="grid gap-6">
-                  <div className="space-y-1">
-                    <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest">Nom Complet *</label>
-                    <input required placeholder="Prénom et Nom" className="w-full text-lg p-5 bg-slate-50 border-2 border-transparent focus:border-assirou-gold focus:bg-white rounded-2xl outline-none transition-all" value={formData.nom_complet} onChange={e => setFormData({...formData, nom_complet: e.target.value})} />
-                  </div>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div className="space-y-1">
-                      <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest">E-mail *</label>
-                      <input required type="email" placeholder="votre@email.com" className="w-full p-5 bg-slate-50 border-2 border-transparent focus:border-assirou-gold focus:bg-white rounded-2xl outline-none transition-all" value={formData.adresse_email} onChange={e => setFormData({...formData, adresse_email: e.target.value})} />
+              <div className="space-y-10 animate-in fade-in slide-in-from-bottom-4 duration-500">
+                <div className="flex justify-between items-end">
+                  <h2 className="text-3xl font-black text-assirou-navy border-l-8 border-assirou-gold pl-8 uppercase tracking-tighter">1. Identité</h2>
+                  <span className="text-[10px] font-black text-slate-300 uppercase tracking-widest">Étape 1/5</span>
+                </div>
+                <div className="grid gap-8">
+                  <div className="space-y-3">
+                    <label className="text-[11px] font-black uppercase text-slate-400 tracking-widest ml-1">Civilitté</label>
+                    <div className="flex gap-4">
+                      {['Homme', 'Femme'].map(s => (
+                        <button key={s} type="button" onClick={() => setFormData({...formData, sexe: s as any})} className={`flex-1 py-4 rounded-2xl font-black text-xs uppercase border-2 transition-all ${formData.sexe === s ? 'bg-assirou-navy border-assirou-navy text-white shadow-lg scale-105' : 'bg-white border-slate-100 text-slate-400 hover:border-assirou-gold'}`}>{s}</button>
+                      ))}
                     </div>
-                    <div className="space-y-1">
-                      <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest">Téléphone *</label>
-                      <input required type="tel" placeholder="7x xxx xx xx" className="w-full p-5 bg-slate-50 border-2 border-transparent focus:border-assirou-gold focus:bg-white rounded-2xl outline-none transition-all" value={formData.telephone} onChange={e => setFormData({...formData, telephone: e.target.value})} />
+                  </div>
+                  <div className="space-y-2">
+                    <label className="text-[11px] font-black uppercase text-slate-400 tracking-widest ml-1">Nom Complet *</label>
+                    <input required placeholder="Prénom et Nom de famille" className="w-full text-lg p-6 bg-slate-50 border-2 border-transparent focus:border-assirou-gold focus:bg-white rounded-[2rem] outline-none transition-all shadow-inner" value={formData.nom_complet} onChange={e => setFormData({...formData, nom_complet: e.target.value})} />
+                  </div>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div className="space-y-2">
+                      <label className="text-[11px] font-black uppercase text-slate-400 tracking-widest ml-1">Adresse E-mail *</label>
+                      <input required type="email" placeholder="votre@email.com" className="w-full p-6 bg-slate-50 border-2 border-transparent focus:border-assirou-gold focus:bg-white rounded-[2rem] outline-none transition-all shadow-inner" value={formData.adresse_email} onChange={e => setFormData({...formData, adresse_email: e.target.value})} />
+                    </div>
+                    <div className="space-y-2">
+                      <label className="text-[11px] font-black uppercase text-slate-400 tracking-widest ml-1">Téléphone *</label>
+                      <input required type="tel" placeholder="7x xxx xx xx" className="w-full p-6 bg-slate-50 border-2 border-transparent focus:border-assirou-gold focus:bg-white rounded-[2rem] outline-none transition-all shadow-inner" value={formData.telephone} onChange={e => setFormData({...formData, telephone: e.target.value})} />
                     </div>
                   </div>
                 </div>
               </div>
             )}
 
+            {/* ÉTAPE 2 : PROFIL PRO */}
             {step === 2 && (
-              <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
-                <h2 className="text-2xl font-black text-assirou-navy border-l-6 border-assirou-gold pl-5">Votre Profil</h2>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  {PARTICIPATIONS.map(p => (
-                    <button key={p} type="button" onClick={() => setFormData({...formData, participation: p as any})} className={`p-5 rounded-2xl border-2 text-left font-bold text-sm transition-all ${formData.participation === p ? 'bg-assirou-navy border-assirou-navy text-white shadow-xl translate-y-[-2px]' : 'bg-white border-slate-100 text-slate-400 hover:border-assirou-gold'}`}>
-                      {p}
-                    </button>
-                  ))}
+              <div className="space-y-10 animate-in fade-in slide-in-from-bottom-4 duration-500">
+                <div className="flex justify-between items-end">
+                  <h2 className="text-3xl font-black text-assirou-navy border-l-8 border-assirou-gold pl-8 uppercase tracking-tighter">2. Profil Pro</h2>
+                  <span className="text-[10px] font-black text-slate-300 uppercase tracking-widest">Étape 2/5</span>
                 </div>
-              </div>
-            )}
-
-            {step === 3 && (
-              <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
-                <h2 className="text-2xl font-black text-assirou-navy border-l-6 border-assirou-gold pl-5">Communication</h2>
+                <div className="grid gap-6">
+                  <div className="space-y-2">
+                    <label className="text-[11px] font-black uppercase text-slate-400 tracking-widest ml-1">Organisation / Entreprise</label>
+                    <input placeholder="Nom de votre structure (Optionnel)" className="w-full p-6 bg-slate-50 border-2 border-transparent focus:border-assirou-gold focus:bg-white rounded-[2rem] outline-none shadow-inner" value={formData.organisation_entreprise} onChange={e => setFormData({...formData, organisation_entreprise: e.target.value})} />
+                  </div>
+                  <div className="space-y-2">
+                    <label className="text-[11px] font-black uppercase text-slate-400 tracking-widest ml-1">Fonction / Poste</label>
+                    <input placeholder="Ex: Directeur, Étudiant, Agent..." className="w-full p-6 bg-slate-50 border-2 border-transparent focus:border-assirou-gold focus:bg-white rounded-[2rem] outline-none shadow-inner" value={formData.fonction} onChange={e => setFormData({...formData, fonction: e.target.value})} />
+                  </div>
+                </div>
                 <div className="space-y-4">
-                  <label className="text-[11px] font-black uppercase text-assirou-gold tracking-wider">Comment nous avez-vous connu ?</label>
-                  <div className="flex flex-wrap gap-2">
-                    {CANAUX_FORUM.map(c => (
-                      <button key={c} type="button" onClick={() => toggleSelection('canal_forum', c)} className={`px-5 py-3 rounded-full text-[10px] font-black border-2 transition-all ${formData.canal_forum?.includes(c) ? 'bg-assirou-gold border-assirou-gold text-white shadow-md' : 'bg-white border-slate-200 text-slate-400 hover:border-assirou-gold'}`}>{c}</button>
+                  <label className="text-[11px] font-black uppercase text-slate-400 tracking-widest ml-1">Catégorie d'inscription</label>
+                  <div className="grid grid-cols-1 gap-3">
+                    {PARTICIPATIONS.map(p => (
+                      <button key={p} type="button" onClick={() => setFormData({...formData, participation: p as any})} className={`p-6 rounded-[2rem] border-2 text-left font-bold transition-all ${formData.participation === p ? 'bg-assirou-navy border-assirou-navy text-white shadow-xl translate-y-[-4px]' : 'bg-white border-slate-100 text-slate-400 hover:border-assirou-gold'}`}>
+                        <div className="flex justify-between items-center">
+                          <span>{p}</span>
+                          {formData.participation === p && <i className="fas fa-check-circle text-assirou-gold"></i>}
+                        </div>
+                      </button>
                     ))}
                   </div>
                 </div>
               </div>
             )}
 
+            {/* ÉTAPE 3 : AUDIENCE */}
+            {step === 3 && (
+              <div className="space-y-12 animate-in fade-in slide-in-from-bottom-4 duration-500">
+                <div className="flex justify-between items-end">
+                  <h2 className="text-3xl font-black text-assirou-navy border-l-8 border-assirou-gold pl-8 uppercase tracking-tighter">3. Enquête</h2>
+                  <span className="text-[10px] font-black text-slate-300 uppercase tracking-widest">Étape 3/5</span>
+                </div>
+                <div className="space-y-6">
+                  <label className="text-xs font-black uppercase text-assirou-gold tracking-widest">Comment avez-vous connu le forum ?</label>
+                  <div className="flex flex-wrap gap-2">
+                    {CANAUX_FORUM.map(c => (
+                      <button key={c} type="button" onClick={() => toggleSelection('canal_forum', c)} className={`px-6 py-4 rounded-full text-[10px] font-black border-2 transition-all ${formData.canal_forum?.includes(c) ? 'bg-assirou-gold border-assirou-gold text-white shadow-lg' : 'bg-white border-slate-100 text-slate-400 hover:border-assirou-gold'}`}>{c}</button>
+                    ))}
+                  </div>
+                </div>
+                <div className="space-y-6">
+                  <label className="text-xs font-black uppercase text-assirou-navy tracking-widest">Via quel canal suivez-vous Assirou Sécurité ?</label>
+                  <div className="flex flex-wrap gap-2">
+                    {CANAUX_ASSIROU.map(c => (
+                      <button key={c} type="button" onClick={() => toggleSelection('canal_assirou', c)} className={`px-6 py-4 rounded-full text-[10px] font-black border-2 transition-all ${formData.canal_assirou?.includes(c) ? 'bg-assirou-navy border-assirou-navy text-white shadow-lg' : 'bg-white border-slate-100 text-slate-400 hover:border-assirou-navy'}`}>{c}</button>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* ÉTAPE 4 : BESOINS */}
             {step === 4 && (
-              <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
-                <h2 className="text-2xl font-black text-assirou-navy border-l-6 border-assirou-gold pl-5">Besoins</h2>
-                <div className="bg-slate-50 p-6 rounded-3xl border border-slate-100">
-                  <div className="flex justify-between items-center mb-6">
-                    <p className="font-black text-sm uppercase">Souhaitez-vous une formation ?</p>
-                    <div className="flex gap-2">
-                      {['Oui', 'Non'].map(v => (
-                        <button key={v} type="button" onClick={() => handleYesNoChange('souhait_formation', v as any)} className={`px-6 py-2 rounded-xl text-[10px] font-black transition-all ${formData.souhait_formation === v ? 'bg-assirou-navy text-white shadow-lg' : 'bg-white text-slate-300 border border-slate-200'}`}>{v}</button>
+              <div className="space-y-12 animate-in fade-in slide-in-from-bottom-4 duration-500">
+                <div className="flex justify-between items-end">
+                  <h2 className="text-3xl font-black text-assirou-navy border-l-8 border-assirou-gold pl-8 uppercase tracking-tighter">4. Besoins</h2>
+                  <span className="text-[10px] font-black text-slate-300 uppercase tracking-widest">Étape 4/5</span>
+                </div>
+                
+                <div className="bg-slate-50 p-10 rounded-[3rem] border border-slate-100">
+                  <p className="text-xs font-black uppercase mb-8 text-assirou-navy tracking-widest flex items-center gap-3">
+                    <i className="fas fa-graduation-cap text-assirou-gold"></i>
+                    Souhaitez-vous suivre une formation ?
+                  </p>
+                  <div className="flex gap-4 mb-8">
+                    {['Oui', 'Non'].map(v => (
+                      <button key={v} type="button" onClick={() => setFormData({...formData, souhait_formation: v as any})} className={`flex-1 py-5 rounded-[2rem] font-black text-xs uppercase border-2 transition-all ${formData.souhait_formation === v ? 'bg-assirou-gold border-assirou-gold text-white shadow-xl' : 'bg-white border-slate-200 text-slate-400'}`}>{v}</button>
+                    ))}
+                  </div>
+                  {formData.souhait_formation === 'Oui' && (
+                    <div className="flex flex-wrap gap-2 animate-in fade-in zoom-in-95">
+                      {FORMATIONS_LIST.map(f => (
+                        <button key={f} type="button" onClick={() => toggleSelection('type_formation', f)} className={`px-5 py-3 rounded-2xl text-[10px] font-black border uppercase transition-all ${formData.type_formation?.includes(f) ? 'bg-assirou-gold text-white border-assirou-gold' : 'bg-white text-slate-400 border-slate-200 hover:border-assirou-gold'}`}>{f}</button>
                       ))}
+                    </div>
+                  )}
+                </div>
+
+                <div className="bg-slate-50 p-10 rounded-[3rem] border border-slate-100">
+                  <p className="text-xs font-black uppercase mb-8 text-assirou-navy tracking-widest flex items-center gap-3">
+                    <i className="fas fa-handshake text-assirou-navy"></i>
+                    Intéressé par nos prestations ?
+                  </p>
+                  <div className="flex gap-4 mb-8">
+                    {['Oui', 'Non'].map(v => (
+                      <button key={v} type="button" onClick={() => setFormData({...formData, interet_services: v as any})} className={`flex-1 py-5 rounded-[2rem] font-black text-xs uppercase border-2 transition-all ${formData.interet_services === v ? 'bg-assirou-navy border-assirou-navy text-white shadow-xl' : 'bg-white border-slate-200 text-slate-400'}`}>{v}</button>
+                    ))}
+                  </div>
+                  {formData.interet_services === 'Oui' && (
+                    <div className="flex flex-wrap gap-2 animate-in fade-in zoom-in-95">
+                      {SERVICES_LIST.map(s => (
+                        <button key={s} type="button" onClick={() => toggleSelection('services_interesses', s)} className={`px-5 py-3 rounded-2xl text-[10px] font-black border uppercase transition-all ${formData.services_interesses?.includes(s) ? 'bg-assirou-navy text-white border-assirou-navy' : 'bg-white text-slate-400 border-slate-200 hover:border-assirou-navy'}`}>{s}</button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {/* ÉTAPE 5 : VALIDATION */}
+            {step === 5 && (
+              <div className="space-y-12 animate-in fade-in slide-in-from-bottom-4 duration-500">
+                <div className="flex justify-between items-end">
+                  <h2 className="text-3xl font-black text-assirou-navy border-l-8 border-assirou-gold pl-8 uppercase tracking-tighter">5. Finition</h2>
+                  <span className="text-[10px] font-black text-slate-300 uppercase tracking-widest">Dernière Étape</span>
+                </div>
+                
+                <div className="space-y-8">
+                  <div className="p-10 bg-slate-50 rounded-[3rem] border border-slate-100 space-y-6">
+                    <h3 className="text-xs font-black uppercase text-assirou-gold tracking-[0.2em] mb-4">Récapitulatif de votre Pass</h3>
+                    <div className="flex justify-between items-center pb-4 border-b border-slate-200">
+                      <span className="text-[10px] font-black uppercase text-slate-400">Détenteur</span>
+                      <span className="font-black text-lg text-assirou-navy">{formData.nom_complet}</span>
+                    </div>
+                    <div className="flex justify-between items-center pb-4 border-b border-slate-200">
+                      <span className="text-[10px] font-black uppercase text-slate-400">Email</span>
+                      <span className="font-bold">{formData.adresse_email}</span>
+                    </div>
+                    <div className="flex justify-between items-center">
+                      <span className="text-[10px] font-black uppercase text-slate-400">Catégorie</span>
+                      <span className="bg-assirou-navy text-white px-4 py-1 rounded-full text-[10px] font-black uppercase tracking-widest">{formData.participation}</span>
+                    </div>
+                  </div>
+
+                  <div 
+                    className={`flex items-start gap-4 p-8 rounded-[2.5rem] border-2 cursor-pointer transition-all ${confirmed ? 'bg-green-50 border-green-200' : 'bg-white border-slate-100 hover:border-assirou-gold'}`}
+                    onClick={() => setConfirmed(!confirmed)}
+                  >
+                    <div className={`mt-1 w-8 h-8 rounded-xl border-2 flex items-center justify-center transition-all ${confirmed ? 'bg-green-500 border-green-500' : 'bg-white border-slate-300'}`}>
+                      {confirmed && <i className="fas fa-check text-white text-sm"></i>}
+                    </div>
+                    <div className="flex-1">
+                      <p className="text-sm font-black text-assirou-navy uppercase tracking-tight mb-2">Consentement de participation</p>
+                      <p className="text-[11px] font-medium text-slate-500 leading-relaxed">
+                        Je confirme l'exactitude des informations fournies. J'accepte de recevoir mon badge numérique par e-mail et d'être tenu informé des activités du Forum Sécurité 2026.
+                      </p>
                     </div>
                   </div>
                 </div>
               </div>
             )}
 
-            {step === 5 && (
-              <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
-                <h2 className="text-2xl font-black text-assirou-navy border-l-6 border-assirou-gold pl-5">Validation</h2>
-                <div className="bg-assirou-navy/5 p-8 rounded-[2rem] border-2 border-dashed border-assirou-navy/10">
-                  <label className="flex items-start gap-4 cursor-pointer">
-                    <input type="checkbox" className="mt-1" checked={confirmed} onChange={() => setConfirmed(!confirmed)} />
-                    <span className="text-[12px] font-black text-assirou-navy uppercase tracking-wide">Je confirme mon inscription.</span>
-                  </label>
-                </div>
-              </div>
-            )}
-
-            <div className="flex flex-col sm:flex-row gap-4 pt-10 border-t border-slate-100">
+            {/* BOUTONS DE NAVIGATION */}
+            <div className="flex gap-4 pt-12 border-t border-slate-100">
               {step > 1 && (
-                <button type="button" onClick={prevStep} className="px-10 py-5 rounded-2xl bg-slate-100 font-black text-[11px] uppercase text-slate-400">Retour</button>
+                <button 
+                  type="button" 
+                  onClick={prevStep} 
+                  disabled={loading}
+                  className="flex-1 py-6 rounded-[2.5rem] font-black text-[11px] uppercase tracking-[0.2em] text-slate-400 hover:text-assirou-navy transition-all flex items-center justify-center gap-2 group"
+                >
+                  <i className="fas fa-chevron-left group-hover:-translate-x-1 transition-transform"></i> Retour
+                </button>
               )}
+              
               {step < 5 ? (
-                <button type="button" onClick={nextStep} className="flex-1 px-10 py-5 rounded-2xl bg-assirou-navy text-white font-black text-[11px] uppercase tracking-widest shadow-xl">Continuer</button>
+                <button 
+                  type="button" 
+                  onClick={nextStep} 
+                  className="flex-[2] bg-assirou-navy text-white py-6 rounded-[2.5rem] font-black text-[11px] uppercase tracking-[0.2em] hover:bg-assirou-gold transition-all shadow-[0_15px_30px_rgba(0,33,87,0.2)] flex items-center justify-center gap-2 group"
+                >
+                  Suivant <i className="fas fa-chevron-right group-hover:translate-x-1 transition-transform"></i>
+                </button>
               ) : (
-                <button type="submit" disabled={!confirmed || loading} className="flex-1 px-10 py-5 rounded-2xl bg-assirou-gold text-assirou-navy font-black text-[11px] uppercase tracking-widest shadow-2xl disabled:opacity-50">
-                  {loading ? (
-                    <span className="flex items-center justify-center gap-3">
-                      <i className="fas fa-spinner fa-spin"></i> {loadingMsg}
-                    </span>
-                  ) : 'Valider & Générer mon Badge'}
+                <button 
+                  type="submit" 
+                  disabled={!confirmed || loading} 
+                  className={`flex-[2] py-6 rounded-[2.5rem] font-black text-[11px] uppercase tracking-[0.2em] transition-all shadow-2xl flex items-center justify-center gap-2 ${confirmed && !loading ? 'bg-assirou-gold text-assirou-navy hover:scale-[1.02] active:scale-95' : 'bg-slate-200 text-slate-400 cursor-not-allowed'}`}
+                >
+                  {loading ? <i className="fas fa-circle-notch fa-spin"></i> : <i className="fas fa-shield-check"></i>}
+                  {loading ? loadingMsg : "Générer mon Pass Officiel"}
                 </button>
               )}
             </div>
+
           </form>
+
+        </div>
+        
+        {/* Footer info */}
+        <div className="mt-12 text-center">
+           <p className="text-[9px] font-black uppercase text-slate-300 tracking-[1em]">Assirou Sécurité • Kaarange bi dall xel</p>
         </div>
       </div>
     </div>

@@ -4,11 +4,14 @@ import { useParams, Link } from 'react-router-dom';
 import { getParticipantByTicket } from '../utils/storage';
 import { Participant } from '../types';
 import TicketCard from './TicketCard';
+import { toPng } from 'html-to-image';
+import { jsPDF } from 'jspdf';
 
 const TicketView: React.FC = () => {
   const { ticketId } = useParams<{ ticketId: string }>();
   const [participant, setParticipant] = useState<Participant | null>(null);
   const [loading, setLoading] = useState(true);
+  const [downloading, setDownloading] = useState(false);
 
   useEffect(() => {
     const load = async () => {
@@ -21,12 +24,54 @@ const TicketView: React.FC = () => {
     load();
   }, [ticketId]);
 
+  const handleDownloadImage = async () => {
+    const node = document.getElementById('badge-capture');
+    if (!node) return;
+    setDownloading(true);
+    try {
+      const dataUrl = await toPng(node, { 
+        quality: 1, 
+        pixelRatio: 3,
+        backgroundColor: '#ffffff',
+        style: { borderRadius: '0' } // Pour une image nette
+      });
+      const link = document.createElement('a');
+      link.download = `badge-assirou-${participant?.numero_ticket}.png`;
+      link.href = dataUrl;
+      link.click();
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setDownloading(false);
+    }
+  };
+
+  const handleDownloadPDF = async () => {
+    const node = document.getElementById('badge-capture');
+    if (!node) return;
+    setDownloading(true);
+    try {
+      const dataUrl = await toPng(node, { quality: 1, pixelRatio: 2 });
+      const pdf = new jsPDF('p', 'mm', 'a4');
+      const imgProps = pdf.getImageProperties(dataUrl);
+      const pdfWidth = pdf.internal.pageSize.getWidth();
+      const pdfHeight = (imgProps.height * pdfWidth) / imgProps.width;
+      
+      pdf.addImage(dataUrl, 'PNG', 0, 0, pdfWidth, pdfHeight);
+      pdf.save(`pass-officiel-${participant?.numero_ticket}.pdf`);
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setDownloading(false);
+    }
+  };
+
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-[#00153a]">
-        <div className="text-center">
-          <i className="fas fa-spinner fa-spin text-3xl text-assirou-gold mb-4"></i>
-          <p className="text-[10px] font-black uppercase tracking-widest text-white">Validation...</p>
+      <div className="min-h-screen flex items-center justify-center bg-assirou-navy text-white">
+        <div className="text-center animate-pulse">
+          <i className="fas fa-shield-halved text-6xl text-assirou-gold mb-8"></i>
+          <p className="text-[12px] font-black uppercase tracking-[0.6em]">Authentification en cours...</p>
         </div>
       </div>
     );
@@ -34,38 +79,110 @@ const TicketView: React.FC = () => {
 
   if (!participant) {
     return (
-      <div className="min-h-screen flex flex-col items-center justify-center p-6 bg-[#00153a] text-center">
-        <div className="bg-white p-10 rounded-[2rem] shadow-2xl max-w-xs">
-          <i className="fas fa-times-circle text-4xl text-red-500 mb-4"></i>
-          <h2 className="text-xl font-black text-assirou-navy uppercase">Badge Inexistant</h2>
-          <p className="text-slate-400 text-xs mb-6 mt-2">Ce ticket n'est pas dans notre base de données.</p>
-          <Link to="/" className="inline-block w-full bg-assirou-navy text-white py-4 rounded-xl font-black uppercase text-[10px] tracking-widest">Retour</Link>
+      <div className="min-h-screen flex flex-col items-center justify-center p-8 bg-red-50 text-center">
+        <div className="bg-white p-14 rounded-[4rem] shadow-2xl border border-red-100 max-w-md">
+          <div className="w-24 h-24 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-8">
+            <i className="fas fa-times-circle text-5xl text-red-500"></i>
+          </div>
+          <h2 className="text-3xl font-black text-red-900 uppercase tracking-tighter leading-none mb-4">Pass Invalide</h2>
+          <p className="text-red-700/60 text-sm font-medium italic mb-12">Ce ticket n'existe pas ou a été révoqué.</p>
+          <Link to="/" className="inline-block w-full px-8 py-5 bg-red-900 text-white rounded-2xl font-black uppercase text-[10px] tracking-widest shadow-xl">Retour à l'accueil</Link>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-slate-100 flex flex-col items-center justify-center p-4">
-      {/* Badge Valide Banner */}
-      <div className="mb-6 bg-green-600 text-white px-8 py-3 rounded-full font-black uppercase text-[10px] tracking-[0.2em] shadow-lg animate-bounce no-print">
-        <i className="fas fa-check-circle mr-2"></i> Pass Officiel Valide
+    <div className="min-h-screen bg-slate-50 flex flex-col items-center p-8 md:p-20 relative">
+      <div className="absolute inset-0 opacity-[0.03] pointer-events-none bg-[url('https://www.transparenttextures.com/patterns/carbon-fibre.png')]"></div>
+
+      {/* HEADER DE LA VUE */}
+      <div className="w-full max-w-5xl flex flex-col md:flex-row justify-between items-center mb-16 gap-8 relative z-10">
+        <div className="text-center md:text-left">
+           <div className="flex items-center gap-3 justify-center md:justify-start mb-2">
+              <span className="w-3 h-3 rounded-full bg-green-500 shadow-[0_0_10px_#22c55e]"></span>
+              <span className="text-[10px] font-black text-green-600 uppercase tracking-[0.3em]">Badge Authentifié</span>
+           </div>
+           <h1 className="text-4xl font-black text-assirou-navy uppercase tracking-tighter">VOTRE PASS OFFICIEL</h1>
+           <p className="text-slate-400 font-medium italic text-sm">Veuillez présenter ce badge à l'entrée du forum.</p>
+        </div>
+        <div className="flex gap-4 no-print">
+          <button 
+            onClick={handleDownloadImage} 
+            disabled={downloading}
+            className="px-8 py-4 bg-white border border-slate-200 text-assirou-navy rounded-2xl font-black text-[10px] uppercase tracking-widest hover:bg-slate-50 transition-all flex items-center gap-3 shadow-sm"
+          >
+            {downloading ? <i className="fas fa-spinner fa-spin"></i> : <i className="fas fa-image"></i>}
+            Sauvegarder Image
+          </button>
+          <button 
+            onClick={handleDownloadPDF}
+            disabled={downloading}
+            className="px-8 py-4 bg-assirou-navy text-white rounded-2xl font-black text-[10px] uppercase tracking-widest hover:bg-assirou-gold transition-all flex items-center gap-3 shadow-xl"
+          >
+            {downloading ? <i className="fas fa-spinner fa-spin"></i> : <i className="fas fa-file-pdf"></i>}
+            Télécharger PDF
+          </button>
+        </div>
       </div>
 
-      {/* Affichage direct du Badge */}
-      <div className="animate-in zoom-in-95 duration-500">
-        <TicketCard participant={participant} />
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-20 items-center w-full max-w-6xl relative z-10">
+        
+        {/* LE BADGE REDESIGNÉ */}
+        <div className="flex justify-center animate-in fade-in slide-in-from-left-8 duration-700">
+           <TicketCard participant={participant} />
+        </div>
+
+        {/* INFOS DE SCAN RAPIDE */}
+        <div className="space-y-12 animate-in fade-in slide-in-from-right-8 duration-700">
+          <div className="bg-white p-12 rounded-[3.5rem] shadow-2xl border border-slate-100 relative overflow-hidden group">
+            <div className="absolute top-0 right-0 w-32 h-32 bg-green-500/5 rounded-full -mr-16 -mt-16 group-hover:scale-150 transition-transform duration-700"></div>
+            
+            <p className="text-[12px] font-black text-slate-300 uppercase tracking-[0.8em] mb-8">Scan Rapide</p>
+            <h2 className="text-6xl md:text-7xl font-black text-assirou-navy uppercase tracking-tighter leading-[0.85] mb-8 drop-shadow-sm">
+               {participant.nom_complet.split(' ')[0]} <br/> 
+               <span className="text-assirou-gold">{participant.nom_complet.split(' ').slice(1).join(' ')}</span>
+            </h2>
+            
+            <div className="space-y-4 pt-8 border-t border-slate-50">
+               <div className="flex justify-between items-center">
+                  <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Numéro Unique</span>
+                  <span className="mono font-black text-assirou-navy">{participant.numero_ticket}</span>
+               </div>
+               <div className="flex justify-between items-center">
+                  <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Catégorie</span>
+                  <span className="bg-assirou-navy text-white px-4 py-1 rounded-full text-[9px] font-black uppercase tracking-widest">{participant.participation}</span>
+               </div>
+            </div>
+          </div>
+
+          <div className="bg-assirou-navy p-10 rounded-[3rem] text-white flex items-center gap-8 shadow-2xl relative overflow-hidden">
+             <div className="absolute inset-0 opacity-10 bg-[url('https://www.transparenttextures.com/patterns/carbon-fibre.png')]"></div>
+             <div className="w-20 h-20 bg-white/10 rounded-3xl flex items-center justify-center shrink-0 border border-white/10 backdrop-blur-xl">
+                <i className="fas fa-qrcode text-3xl text-assirou-gold"></i>
+             </div>
+             <div>
+                <h4 className="font-black text-lg uppercase tracking-tight mb-1">Badge de Sécurité</h4>
+                <p className="text-xs text-white/50 leading-relaxed font-medium">Ce pass est strictement personnel. Il doit être présenté sous format numérique ou imprimé lors du contrôle à l'entrée du CSC Thiaroye sur Mer.</p>
+             </div>
+          </div>
+          
+          <div className="text-center pt-8">
+             <Link to="/" className="text-[10px] font-black uppercase tracking-[0.4em] text-slate-400 hover:text-assirou-navy transition-all flex items-center justify-center gap-4 group">
+               <i className="fas fa-arrow-left group-hover:-translate-x-2 transition-transform"></i> Retour au portail
+             </Link>
+          </div>
+        </div>
+
       </div>
 
-      {/* Actions simples */}
-      <div className="mt-8 flex gap-3 no-print">
-        <button onClick={() => window.print()} className="bg-assirou-navy text-white px-8 py-4 rounded-xl font-black uppercase text-[10px] tracking-widest shadow-xl">
-          <i className="fas fa-print mr-2"></i> Imprimer
-        </button>
-        <Link to="/" className="bg-white text-slate-400 border border-slate-200 px-8 py-4 rounded-xl font-black uppercase text-[10px] tracking-widest hover:bg-slate-50 transition-all">
-          Retour
-        </Link>
-      </div>
+      <style>{`
+        @media print {
+          .no-print { display: none !important; }
+          body { background: white !important; }
+          .min-h-screen { min-height: auto !important; padding: 0 !important; }
+        }
+      `}</style>
     </div>
   );
 };

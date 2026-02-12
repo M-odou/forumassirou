@@ -69,27 +69,24 @@ export const saveParticipant = async (participantData: Omit<Participant, 'id'>):
   const fullParticipant = { ...participantData, id: tempId } as Participant;
   
   try {
-    // On tente Supabase
+    // Tentative Supabase
     const { error } = await supabase.from('participants').insert([participantData]);
     if (error) throw error;
     return true;
   } catch (e) {
-    console.warn("Échec Supabase (probablement RLS), sauvegarde locale activée.");
+    console.warn("Échec distant (RLS ou Réseau), sauvegarde locale effectuée.");
     saveToLocal(fullParticipant);
-    return true; // On retourne true pour ne pas bloquer l'utilisateur
+    return true; // On retourne true pour permettre la redirection vers le badge
   }
 };
 
 export const deleteParticipant = async (id: string): Promise<boolean> => {
   try {
     const { error } = await supabase.from('participants').delete().eq('id', id);
-    // On nettoie aussi le local
     const local = getFromLocal().filter(p => p.id !== id);
     localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(local));
-    return true;
-  } catch (e) { 
-    return false; 
-  }
+    return true; 
+  } catch (e) { return false; }
 };
 
 export const generateTicketNumber = async (): Promise<string> => {
