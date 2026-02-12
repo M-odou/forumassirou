@@ -9,6 +9,16 @@ export const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
 const LOCAL_STORAGE_KEY = 'participants_backup';
 
+const saveToLocal = (participant: Participant) => {
+  try {
+    const localData = getFromLocal();
+    if (!localData.find(p => p.numero_ticket === participant.numero_ticket)) {
+      localData.push(participant);
+      localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(localData));
+    }
+  } catch (e) { console.error("Local save error:", e); }
+};
+
 const getFromLocal = (): Participant[] => {
   try {
     const data = localStorage.getItem(LOCAL_STORAGE_KEY);
@@ -69,15 +79,27 @@ export const validateTicket = async (id: string): Promise<boolean> => {
 };
 
 export const saveParticipant = async (participantData: Omit<Participant, 'id'>): Promise<boolean> => {
+  const tempId = 'ID_' + Math.random().toString(36).substr(2, 9);
+  const fullParticipant = { ...participantData, id: tempId } as Participant;
+
   try {
+    // Tentative Supabase
     const { error } = await supabase.from('participants').insert([participantData]);
-    return !error;
-  } catch (e) { return false; }
+    if (error) throw error;
+    return true;
+  } catch (e) {
+    console.warn("Échec base de données, sauvegarde locale de secours activée:", e);
+    // Secours local
+    saveToLocal(fullParticipant);
+    return true; // On retourne true pour que l'utilisateur puisse voir son badge
+  }
 };
 
 export const deleteParticipant = async (id: string): Promise<boolean> => {
   try {
     const { error } = await supabase.from('participants').delete().eq('id', id);
+    const local = getFromLocal().filter(p => p.id !== id);
+    localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(local));
     return !error;
   } catch (e) { return false; }
 };
@@ -85,7 +107,9 @@ export const deleteParticipant = async (id: string): Promise<boolean> => {
 export const generateTicketNumber = async (): Promise<string> => {
   try {
     const { count } = await supabase.from('participants').select('*', { count: 'exact', head: true });
-    return `FORUM-SEC-2026-${((count || 0) + 1).toString().padStart(4, '0')}`;
+    const localCount = getFromLocal().length;
+    const total = (count || 0) + localCount + 1;
+    return `FORUM-SEC-2026-${total.toString().padStart(4, '0')}`;
   } catch (e) { 
     return `FORUM-SEC-2026-${Math.floor(Math.random() * 9000 + 1000)}`; 
   }
@@ -99,7 +123,9 @@ export const isRegistrationActive = async (): Promise<boolean> => {
 };
 
 export const setRegistrationStatus = async (active: boolean): Promise<void> => {
-  await supabase.from('settings').upsert({ key: 'registration_active', value: active.toString() });
+  try {
+    await supabase.from('settings').upsert({ key: 'registration_active', value: active.toString() });
+  } catch (e) {}
 };
 
 export const isScanSystemActive = async (): Promise<boolean> => {
@@ -110,7 +136,9 @@ export const isScanSystemActive = async (): Promise<boolean> => {
 };
 
 export const setScanSystemStatus = async (active: boolean): Promise<void> => {
-  await supabase.from('settings').upsert({ key: 'scan_active', value: active.toString() });
+  try {
+    await supabase.from('settings').upsert({ key: 'scan_active', value: active.toString() });
+  } catch (e) {}
 };
 
 export const subscribeToParticipants = (callback: () => void) => {

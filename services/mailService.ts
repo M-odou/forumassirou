@@ -7,10 +7,13 @@ export const sendConfirmationEmail = async (participant: Participant): Promise<b
   try {
     const emailBody = await generateEmailContent(participant);
     const ticketLink = `${window.location.origin}/#/ticket/${participant.numero_ticket}`;
+    
+    // Récupération de la clé API
     const apiKey = process.env.RESEND_API_KEY;
 
-    if (!apiKey || apiKey === '' || apiKey === 're_placeholder') {
-      console.error("ERREUR : Clé API Resend manquante ou invalide.");
+    // Si la clé est manquante, on ne traite pas l'envoi automatique mais on ne bloque pas le processus global
+    if (!apiKey || apiKey === '' || apiKey === 're_placeholder' || apiKey.length < 5) {
+      console.warn("NOTE DÉVELOPPEUR : Clé API Resend non configurée. L'envoi automatique est ignoré.");
       await updateMailStatus(participant.numero_ticket, 'failed');
       return false;
     }
@@ -21,9 +24,8 @@ export const sendConfirmationEmail = async (participant: Participant): Promise<b
         'Content-Type': 'application/json',
         'Authorization': `Bearer ${apiKey}` 
       },
-      mode: 'cors', // Tentative d'appel CORS
       body: JSON.stringify({
-        from: 'Assirou Sécurité <onboarding@resend.dev>', // Utiliser l'email de test Resend par défaut si le domaine n'est pas vérifié
+        from: 'Assirou Sécurité <onboarding@resend.dev>',
         to: [participant.adresse_email],
         subject: `Confirmation d'inscription - Forum Sécurité 2026`,
         html: `
@@ -50,10 +52,11 @@ export const sendConfirmationEmail = async (participant: Participant): Promise<b
     } else {
       const errorText = await response.text();
       console.error("Erreur API Resend :", errorText);
-      throw new Error(errorText);
+      await updateMailStatus(participant.numero_ticket, 'failed');
+      return false;
     }
   } catch (error) {
-    console.error("Échec de l'envoi d'email automatique :", error);
+    console.error("Échec de l'envoi d'email :", error);
     await updateMailStatus(participant.numero_ticket, 'failed');
     return false;
   }
@@ -61,18 +64,23 @@ export const sendConfirmationEmail = async (participant: Participant): Promise<b
 
 const updateMailStatus = async (ticketNum: string, status: 'sent' | 'failed') => {
   try {
-    await supabase
+    const { error } = await supabase
       .from('participants')
       .update({ statut_email: status })
       .eq('numero_ticket', ticketNum);
+    if (error) console.error("Update DB status error:", error);
   } catch (e) {
     console.error("Erreur mise à jour statut mail Supabase:", e);
   }
 };
 
 export const openMailClient = async (participant: Participant) => {
-  const content = await generateEmailContent(participant);
-  const subject = encodeURIComponent(`Confirmation d'inscription - Forum Sécurité 2026`);
-  const body = encodeURIComponent(content + `\n\nVotre badge est disponible ici : ${window.location.origin}/#/ticket/${participant.numero_ticket}`);
-  window.location.href = `mailto:${participant.adresse_email}?subject=${subject}&body=${body}`;
+  try {
+    const content = await generateEmailContent(participant);
+    const subject = encodeURIComponent(`Confirmation d'inscription - Forum Sécurité 2026`);
+    const body = encodeURIComponent(content + `\n\nVotre badge est disponible ici : ${window.location.origin}/#/ticket/${participant.numero_ticket}`);
+    window.location.href = `mailto:${participant.adresse_email}?subject=${subject}&body=${body}`;
+  } catch (e) {
+    window.location.href = `mailto:${participant.adresse_email}?subject=Confirmation&body=Votre badge est prêt.`;
+  }
 };

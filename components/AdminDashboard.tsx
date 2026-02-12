@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect, useCallback } from 'react';
-import { getParticipants, isRegistrationActive, setRegistrationStatus, isScanSystemActive, setScanSystemStatus, exportParticipantsToCSV, deleteParticipant, subscribeToParticipants, supabase } from '../utils/storage';
+import { getParticipants, isRegistrationActive, setRegistrationStatus, isScanSystemActive, setScanSystemStatus, exportParticipantsToCSV, deleteParticipant, validateTicket, subscribeToParticipants, supabase } from '../utils/storage';
 import { Participant } from '../types';
 import { sendConfirmationEmail, openMailClient } from '../services/mailService';
 
@@ -37,6 +37,16 @@ const AdminDashboard: React.FC = () => {
     }
   };
 
+  const handleManualValidate = async (p: Participant) => {
+    if (p.scan_valide) return;
+    if (window.confirm(`Confirmer la validation manuelle de ${p.nom_complet} ?`)) {
+      setLoading(true);
+      await validateTicket(p.id);
+      loadData();
+      setLoading(false);
+    }
+  };
+
   const toggleScan = async () => {
     const next = !scanActive;
     await setScanSystemStatus(next);
@@ -54,9 +64,14 @@ const AdminDashboard: React.FC = () => {
         
         {/* ACTION HEADER */}
         <div className="flex flex-col lg:flex-row justify-between items-center bg-white/5 p-8 rounded-[2rem] border border-white/10 backdrop-blur-xl gap-6">
-          <div className="text-center lg:text-left">
-            <h1 className="text-2xl font-black uppercase tracking-tighter">PORTAIL <span className="text-assirou-gold">ADMIN</span></h1>
-            <p className="text-slate-400 text-[10px] font-bold uppercase tracking-widest mt-1">Gestion du Forum 2026</p>
+          <div className="flex items-center gap-4 text-center lg:text-left">
+            <div className="w-12 h-12 bg-white rounded-xl flex items-center justify-center">
+               <span className="text-assirou-navy font-black text-xl tracking-tighter">AS</span>
+            </div>
+            <div>
+              <h1 className="text-2xl font-black uppercase tracking-tighter leading-tight">PORTAIL <span className="text-assirou-gold">ADMIN</span></h1>
+              <p className="text-slate-400 text-[10px] font-bold uppercase tracking-widest">Gestion du Forum 2026</p>
+            </div>
           </div>
           
           <div className="flex flex-wrap gap-4 justify-center">
@@ -120,7 +135,12 @@ const AdminDashboard: React.FC = () => {
                           <span className="text-[8px] text-slate-500 mt-1 uppercase font-bold">{new Date(p.date_validation!).toLocaleString()}</span>
                         </div>
                       ) : (
-                        <span className="text-[9px] font-black text-slate-500 bg-white/5 px-3 py-1 rounded-full border border-white/5 uppercase tracking-tighter">EN ATTENTE</span>
+                        <button 
+                          onClick={() => handleManualValidate(p)}
+                          className="text-[9px] font-black text-slate-300 bg-white/5 px-3 py-1 rounded-full border border-white/5 uppercase tracking-tighter hover:bg-assirou-gold hover:text-navy hover:border-assirou-gold transition-all"
+                        >
+                          Valider manuellement
+                        </button>
                       )}
                     </td>
                     <td className="px-8 py-5 text-right space-x-2">
