@@ -66,8 +66,8 @@ const AdminDashboard: React.FC = () => {
     <div className="min-h-screen bg-[#00153a] text-white p-4 md:p-8 font-sans">
       <div className="max-w-7xl mx-auto space-y-6">
         
-        {/* ACTION HEADER RESPONSIVE */}
-        <div className="flex flex-col lg:flex-row justify-between items-center bg-white/5 p-6 md:p-10 rounded-[2.5rem] border border-white/10 backdrop-blur-xl gap-8">
+        {/* ACTION HEADER */}
+        <div className="flex flex-col lg:flex-row justify-between items-center bg-white/5 p-6 md:p-10 rounded-[2.5rem] border border-white/10 backdrop-blur-xl gap-8 shadow-2xl">
           <div className="flex items-center gap-5">
             <div className="w-14 h-14 bg-white rounded-2xl flex items-center justify-center shadow-2xl rotate-3">
                <span className="text-assirou-navy font-black text-2xl">AS</span>
@@ -166,23 +166,32 @@ const AdminDashboard: React.FC = () => {
         </div>
       </div>
 
-      {/* MODAL PARTICIPANT */}
+      {/* MODAL PARTICIPANT - VERSION DÉTAILLÉE */}
       {selected && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/95 backdrop-blur-xl">
-          <div className="bg-[#001c4d] border border-white/10 rounded-[3rem] shadow-2xl max-w-2xl w-full max-h-[85vh] overflow-hidden flex flex-col animate-in zoom-in-95">
-            <div className="p-8 border-b border-white/10 flex justify-between items-center">
+          <div className="bg-[#001c4d] border border-white/10 rounded-[3rem] shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-hidden flex flex-col animate-in zoom-in-95">
+            {/* Modal Header */}
+            <div className="p-8 border-b border-white/10 flex justify-between items-center bg-white/[0.02]">
               <div>
                 <h3 className="text-2xl font-black text-white uppercase tracking-tighter">{selected.nom_complet}</h3>
-                <p className="text-assirou-gold text-[10px] font-black uppercase tracking-widest">{selected.numero_ticket}</p>
+                <div className="flex items-center gap-3 mt-1">
+                  <span className="text-assirou-gold text-[10px] font-black uppercase tracking-widest">{selected.numero_ticket}</span>
+                  <span className="w-1 h-1 bg-white/20 rounded-full"></span>
+                  <span className="text-slate-500 text-[9px] font-bold uppercase tracking-widest">{new Date(selected.date_inscription).toLocaleString('fr-FR')}</span>
+                </div>
               </div>
               <button onClick={() => setSelected(null)} className="w-12 h-12 rounded-2xl bg-white/5 flex items-center justify-center text-slate-400 hover:text-white transition-all">
                 <i className="fas fa-times text-xl"></i>
               </button>
             </div>
+
+            {/* Modal Content */}
             <div className="flex-1 overflow-y-auto p-8 space-y-8 custom-scrollbar">
+              
+              {/* Informations de base */}
               <div className="grid grid-cols-2 gap-4">
                 <div className="p-5 bg-white/5 rounded-2xl border border-white/5">
-                  <p className="text-[9px] font-black text-slate-500 uppercase mb-1">Email</p>
+                  <p className="text-[9px] font-black text-slate-500 uppercase mb-1">Contact Email</p>
                   <p className="text-sm font-bold text-white break-all">{selected.adresse_email}</p>
                 </div>
                 <div className="p-5 bg-white/5 rounded-2xl border border-white/5">
@@ -190,18 +199,94 @@ const AdminDashboard: React.FC = () => {
                   <p className="text-sm font-bold text-white">{selected.telephone}</p>
                 </div>
               </div>
-              <div className="p-6 bg-white/5 rounded-3xl border border-white/5">
-                <h4 className="text-[10px] font-black uppercase text-assirou-gold tracking-widest mb-4">Profil</h4>
-                <div className="space-y-3">
-                  <p className="text-sm"><span className="text-slate-500">Organisation:</span> <span className="font-bold">{selected.organisation_entreprise || 'N/A'}</span></p>
-                  <p className="text-sm"><span className="text-slate-500">Fonction:</span> <span className="font-bold">{selected.fonction || 'N/A'}</span></p>
-                  <p className="text-sm"><span className="text-slate-500">Catégorie:</span> <span className="font-bold">{selected.participation}</span></p>
+
+              {/* Profil Professionnel */}
+              <div className="p-6 bg-white/5 rounded-3xl border border-white/5 space-y-4">
+                <h4 className="text-[10px] font-black uppercase text-assirou-gold tracking-widest mb-2 flex items-center gap-2">
+                   <i className="fas fa-user-tie text-[8px]"></i> Profil Professionnel
+                </h4>
+                <div className="grid grid-cols-2 gap-y-4">
+                  <div>
+                    <p className="text-[9px] text-slate-500 uppercase font-black">Organisation</p>
+                    <p className="text-sm font-bold text-white">{selected.organisation_entreprise || 'Non spécifié'}</p>
+                  </div>
+                  <div>
+                    <p className="text-[9px] text-slate-500 uppercase font-black">Fonction</p>
+                    <p className="text-sm font-bold text-white">{selected.fonction || 'Non spécifié'}</p>
+                  </div>
+                  <div>
+                    <p className="text-[9px] text-slate-500 uppercase font-black">Catégorie</p>
+                    <p className="text-sm font-bold text-white">{selected.participation}</p>
+                  </div>
+                  <div>
+                    <p className="text-[9px] text-slate-500 uppercase font-black">Sexe</p>
+                    <p className="text-sm font-bold text-white">{selected.sexe}</p>
+                  </div>
                 </div>
               </div>
+
+              {/* Vision et Avis sur le Thème */}
+              <div className="p-6 bg-assirou-gold/5 rounded-3xl border border-assirou-gold/10 space-y-4">
+                <h4 className="text-[10px] font-black uppercase text-assirou-gold tracking-widest mb-2 flex items-center gap-2">
+                   <i className="fas fa-lightbulb text-[8px]"></i> Vision du Forum
+                </h4>
+                <div>
+                   <p className="text-[9px] text-slate-500 uppercase font-black mb-2">Avis sur le thème :</p>
+                   <p className="text-sm font-medium text-slate-200 leading-relaxed italic">
+                     {selected.avis_theme ? `"${selected.avis_theme}"` : 'Aucun avis laissé.'}
+                   </p>
+                </div>
+              </div>
+
+              {/* Besoins et Intérêts */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div className="p-6 bg-white/5 rounded-3xl border border-white/5 space-y-4">
+                  <h4 className="text-[10px] font-black uppercase text-white/40 tracking-widest mb-2">Formations</h4>
+                  <p className="text-xs"><span className="text-slate-500">Souhait :</span> <span className={`font-black ${selected.souhait_formation === 'Oui' ? 'text-green-400' : 'text-red-400'}`}>{selected.souhait_formation}</span></p>
+                  {selected.type_formation && selected.type_formation.length > 0 && (
+                    <div className="flex flex-wrap gap-2 mt-2">
+                       {selected.type_formation.map(f => (
+                         <span key={f} className="px-2 py-1 bg-white/5 border border-white/10 rounded text-[9px] font-bold text-assirou-gold uppercase">{f}</span>
+                       ))}
+                    </div>
+                  )}
+                </div>
+                
+                <div className="p-6 bg-white/5 rounded-3xl border border-white/5 space-y-4">
+                  <h4 className="text-[10px] font-black uppercase text-white/40 tracking-widest mb-2">Services</h4>
+                  <p className="text-xs"><span className="text-slate-500">Intérêt :</span> <span className={`font-black ${selected.interet_services === 'Oui' ? 'text-green-400' : 'text-red-400'}`}>{selected.interet_services}</span></p>
+                  {selected.services_interesses && selected.services_interesses.length > 0 && (
+                    <div className="flex flex-wrap gap-2 mt-2">
+                       {selected.services_interesses.map(s => (
+                         <span key={s} className="px-2 py-1 bg-white/5 border border-white/10 rounded text-[9px] font-bold text-assirou-gold uppercase">{s}</span>
+                       ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Provenance */}
+              <div className="p-6 bg-white/5 rounded-3xl border border-white/5">
+                 <p className="text-[9px] text-slate-500 uppercase font-black mb-3">Connu le forum via :</p>
+                 <div className="flex flex-wrap gap-2">
+                    {selected.canal_forum && selected.canal_forum.length > 0 ? (
+                      selected.canal_forum.map(c => (
+                        <span key={c} className="px-3 py-1 bg-assirou-navy rounded-full text-[9px] font-black text-white/70 border border-white/10">{c}</span>
+                      ))
+                    ) : (
+                      <span className="text-xs text-slate-500">Non renseigné</span>
+                    )}
+                 </div>
+              </div>
+
             </div>
+
+            {/* Modal Footer */}
             <div className="p-8 border-t border-white/10 bg-black/20 flex gap-4">
               <button onClick={() => setSelected(null)} className="flex-1 py-4 rounded-2xl bg-white/5 font-black text-[10px] uppercase hover:bg-white/10 transition-all">Fermer</button>
-              <button onClick={() => openMailClient(selected)} className="flex-1 py-4 rounded-2xl bg-assirou-gold text-assirou-navy font-black text-[10px] uppercase hover:brightness-110 transition-all">Contacter</button>
+              <button onClick={() => openMailClient(selected)} className="flex-1 py-4 rounded-2xl bg-assirou-gold text-assirou-navy font-black text-[10px] uppercase hover:brightness-110 transition-all flex items-center justify-center gap-2">
+                <i className="fas fa-paper-plane"></i> Répondre / Contacter
+              </button>
             </div>
           </div>
         </div>
