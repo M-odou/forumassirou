@@ -216,9 +216,9 @@ const PublicForm: React.FC = () => {
                     <input placeholder="Votre rôle" className="w-full p-6 bg-slate-50 border-2 border-transparent focus:border-assirou-gold focus:bg-white rounded-[2rem] outline-none shadow-inner" value={formData.fonction} onChange={e => setFormData({...formData, fonction: e.target.value})} />
                   </div>
                   <div className="space-y-2">
-                    <label className="text-[11px] font-black uppercase text-slate-400 tracking-widest ml-1">Comment voyez-vous le thème du forum ?</label>
+                    <label className="text-[11px] font-black uppercase text-slate-400 tracking-widest ml-1">Avis sur le thème du Forum</label>
                     <textarea 
-                      placeholder="Ex: Un thème essentiel pour l'avenir de la sécurité..." 
+                      placeholder="Thème : La sécurité privée dans les grands événements sportifs et culturels. Votre avis ?" 
                       className="w-full p-6 bg-slate-50 border-2 border-transparent focus:border-assirou-gold focus:bg-white rounded-[2rem] outline-none shadow-inner min-h-[120px] resize-none" 
                       value={formData.avis_theme} 
                       onChange={e => setFormData({...formData, avis_theme: e.target.value})}

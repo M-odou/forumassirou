@@ -2,7 +2,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { getParticipants, isRegistrationActive, setRegistrationStatus, isScanSystemActive, setScanSystemStatus, exportParticipantsToCSV, deleteParticipant, validateTicket, subscribeToParticipants, supabase } from '../utils/storage';
 import { Participant } from '../types';
-import { sendConfirmationEmail, openMailClient } from '../services/mailService';
+import { openMailClient } from '../services/mailService';
 
 const AdminDashboard: React.FC = () => {
   const [participants, setParticipants] = useState<Participant[]>([]);
@@ -179,11 +179,11 @@ const AdminDashboard: React.FC = () => {
             <div className="flex-1 overflow-y-auto p-8 space-y-10 custom-scrollbar">
               
               {/* Statut & Validation */}
-              <div className={`p-6 rounded-3xl border ${selected.scan_valide ? 'bg-green-500/10 border-green-500/20' : 'bg-assirou-gold/5 border-assirou-gold/10'}`}>
+              <div className={`p-6 rounded-3xl border ${selected.scan_valide ? 'bg-green-500/10 border-green-500/20 text-green-400' : 'bg-assirou-gold/5 border-assirou-gold/10 text-assirou-gold'}`}>
                 <div className="flex justify-between items-center">
                   <div>
                     <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">État du Pass</p>
-                    <p className={`text-sm font-black uppercase ${selected.scan_valide ? 'text-green-400' : 'text-assirou-gold'}`}>
+                    <p className="text-sm font-black uppercase">
                       {selected.scan_valide ? '✓ Pass Validé à l\'entrée' : '○ En attente de scan'}
                     </p>
                   </div>
@@ -242,17 +242,17 @@ const AdminDashboard: React.FC = () => {
                 <div className="space-y-4">
                   <h4 className="text-[10px] font-black uppercase text-assirou-gold tracking-[0.3em] border-l-2 border-assirou-gold pl-3">Source Forum</h4>
                   <div className="flex flex-wrap gap-2">
-                    {selected.canal_forum.map((c, i) => (
+                    {selected.canal_forum?.length > 0 ? selected.canal_forum.map((c, i) => (
                       <span key={i} className="px-3 py-1.5 bg-assirou-navy border border-white/10 rounded-lg text-[10px] font-bold text-slate-300">{c}</span>
-                    ))}
+                    )) : <span className="text-[10px] text-slate-600 font-bold">Aucune source indiquée</span>}
                   </div>
                 </div>
                 <div className="space-y-4">
                   <h4 className="text-[10px] font-black uppercase text-assirou-gold tracking-[0.3em] border-l-2 border-assirou-gold pl-3">Source Assirou</h4>
                   <div className="flex flex-wrap gap-2">
-                    {selected.canal_assirou.map((c, i) => (
+                    {selected.canal_assirou?.length > 0 ? selected.canal_assirou.map((c, i) => (
                       <span key={i} className="px-3 py-1.5 bg-assirou-navy border border-white/10 rounded-lg text-[10px] font-bold text-slate-300">{c}</span>
-                    ))}
+                    )) : <span className="text-[10px] text-slate-600 font-bold">Aucune source indiquée</span>}
                   </div>
                 </div>
               </div>
@@ -266,7 +266,7 @@ const AdminDashboard: React.FC = () => {
                       {selected.souhait_formation}
                     </span>
                   </div>
-                  {selected.souhait_formation === 'Oui' && (
+                  {selected.souhait_formation === 'Oui' && selected.type_formation?.length > 0 && (
                     <div className="flex flex-wrap gap-2">
                       {selected.type_formation.map((f, i) => (
                         <span key={i} className="text-[10px] font-black bg-white/5 border border-white/10 px-3 py-1.5 rounded-lg text-white uppercase">{f}</span>
@@ -282,7 +282,7 @@ const AdminDashboard: React.FC = () => {
                       {selected.interet_services}
                     </span>
                   </div>
-                  {selected.interet_services === 'Oui' && (
+                  {selected.interet_services === 'Oui' && selected.services_interesses?.length > 0 && (
                     <div className="flex flex-wrap gap-2">
                       {selected.services_interesses.map((s, i) => (
                         <span key={i} className="text-[10px] font-black bg-white/5 border border-white/10 px-3 py-1.5 rounded-lg text-white uppercase">{s}</span>
