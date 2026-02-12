@@ -5,29 +5,31 @@ import { Participant } from '../types';
 const supabaseUrl = process.env.SUPABASE_URL || '';
 const supabaseAnonKey = process.env.SUPABASE_ANON_KEY || '';
 
-// Initialisation robuste : on vérifie que l'URL est valide
+// Initialisation avec vérification stricte
 export const supabase: SupabaseClient | null = (supabaseUrl && supabaseAnonKey && supabaseUrl.startsWith('http'))
   ? createClient(supabaseUrl, supabaseAnonKey)
   : null;
 
 const LOCAL_STORAGE_KEY = 'participants_backup';
 
-const saveToLocal = (participant: Participant) => {
-  try {
-    const localData = getFromLocal();
-    // On évite les doublons par numéro de ticket
-    if (!localData.find(p => p.numero_ticket === participant.numero_ticket)) {
-      localData.push(participant);
-      localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(localData));
-    }
-  } catch (e) { console.error("Local save error:", e); }
-};
-
 const getFromLocal = (): Participant[] => {
   try {
     const data = localStorage.getItem(LOCAL_STORAGE_KEY);
     return data ? JSON.parse(data) : [];
-  } catch (e) { return []; }
+  } catch (e) { 
+    console.error("Erreur lecture LocalStorage:", e);
+    return []; 
+  }
+};
+
+const saveToLocal = (participant: Participant) => {
+  try {
+    const localData = getFromLocal();
+    if (!localData.find(p => p.numero_ticket === participant.numero_ticket)) {
+      localData.push(participant);
+      localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(localData));
+    }
+  } catch (e) { console.error("Erreur sauvegarde LocalStorage:", e); }
 };
 
 export const getParticipants = async (): Promise<Participant[]> => {
@@ -41,32 +43,32 @@ export const getParticipants = async (): Promise<Participant[]> => {
         .order('date_inscription', { ascending: false });
       
       if (error) {
-        console.error("Supabase Query Error:", error.message);
-      } else {
-        remoteData = data || [];
+        console.error("Erreur Supabase (Query):", error.message);
+      } else if (data) {
+        remoteData = data as Participant[];
       }
     } catch (e) { 
-      console.warn("Supabase connection failed, falling back to local storage"); 
+      console.warn("Connexion Supabase impossible, utilisation du stockage local uniquement"); 
     }
   }
 
   const localData = getFromLocal();
   
-  // Fusion intelligente pour éviter les doublons entre local et remote
+  // Fusion des sources avec dédoublonnage par numero_ticket
   const combinedMap = new Map<string, Participant>();
   
-  // On priorise les données distantes
-  remoteData.forEach(p => combinedMap.set(p.numero_ticket, p));
-  
-  // On ajoute les données locales qui ne sont pas encore sur le serveur
+  // 1. Charger le local (fallback)
   localData.forEach(p => {
-    if (!combinedMap.has(p.numero_ticket)) {
-      combinedMap.set(p.numero_ticket, p);
-    }
+    if (p && p.numero_ticket) combinedMap.set(p.numero_ticket, p);
+  });
+  
+  // 2. Écraser avec le distant (source de vérité)
+  remoteData.forEach(p => {
+    if (p && p.numero_ticket) combinedMap.set(p.numero_ticket, p);
   });
 
   return Array.from(combinedMap.values()).sort((a, b) => 
-    new Date(b.date_inscription).getTime() - new Date(a.date_inscription).getTime()
+    new Date(b.date_inscription || 0).getTime() - new Date(a.date_inscription || 0).getTime()
   );
 };
 
@@ -76,28 +78,35 @@ export const getParticipantByTicket = async (ticketInput: string): Promise<Parti
   
   if (supabase) {
     try {
-      const { data } = await supabase
+      const { data, error } = await supabase
         .from('participants')
         .select('*')
         .or(`numero_ticket.eq.${cleanId},id.eq.${cleanId}`)
         .maybeSingle();
-      if (data) return data as Participant;
+      if (data && !error) return data as Participant;
     } catch (e) {}
   }
 
   return getFromLocal().find(p => 
-    p.numero_ticket.toUpperCase() === cleanId || p.id.toUpperCase() === cleanId
+    p.numero_ticket?.toUpperCase() === cleanId || p.id?.toUpperCase() === cleanId
   ) || null;
 };
 
+// Fix: Add missing getParticipantByToken function needed by ScanPage.tsx
 export const getParticipantByToken = async (token: string): Promise<Participant | null> => {
   if (!token) return null;
+  
   if (supabase) {
     try {
-      const { data } = await supabase.from('participants').select('*').eq('token', token).maybeSingle();
-      if (data) return data as Participant;
+      const { data, error } = await supabase
+        .from('participants')
+        .select('*')
+        .eq('token', token)
+        .maybeSingle();
+      if (data && !error) return data as Participant;
     } catch (e) {}
   }
+
   return getFromLocal().find(p => p.token === token) || null;
 };
 
@@ -135,14 +144,14 @@ export const saveParticipant = async (participantData: Omit<Participant, 'id' | 
     try {
       const { error } = await supabase.from('participants').insert([newParticipant]);
       if (!error) return true;
-      console.error("Supabase Save Error:", error.message);
+      console.error("Erreur insertion Supabase:", error.message);
     } catch (e) {
-      console.error("Supabase Save Exception:", e);
+      console.error("Exception Supabase:", e);
     }
   }
   
-  // Fallback local si Supabase échoue
-  const tempId = 'LOCAL_' + Math.random().toString(36).substr(2, 9);
+  // Enregistrement local en cas d'échec ou absence de Supabase
+  const tempId = 'ID_' + Math.random().toString(36).substr(2, 9);
   saveToLocal({ ...newParticipant, id: tempId } as Participant);
   return true;
 };
@@ -169,7 +178,7 @@ export const generateTicketNumber = async (): Promise<string> => {
     } catch (e) {}
   }
   const localCount = getFromLocal().length;
-  const total = count + localCount + 1;
+  const total = (count || 0) + localCount + 1;
   return `FORUM-SEC-2026-${total.toString().padStart(4, '0')}`;
 };
 
