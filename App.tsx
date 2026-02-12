@@ -4,6 +4,7 @@ import { HashRouter, Routes, Route } from 'react-router-dom';
 import PublicForm from './components/PublicForm';
 import AdminDashboard from './components/AdminDashboard';
 import TicketView from './components/TicketView';
+import ScanPage from './components/ScanPage';
 
 const App: React.FC = () => {
   return (
@@ -20,6 +21,7 @@ const App: React.FC = () => {
             <TicketView />
           </div>
         } />
+        <Route path="/scan" element={<ScanPage />} />
       </Routes>
     </HashRouter>
   );

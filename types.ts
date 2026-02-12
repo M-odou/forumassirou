@@ -16,13 +16,14 @@ export interface Participant {
   interet_services: 'Oui' | 'Non';
   services_interesses: string[];
   numero_ticket: string;
+  token: string; // Jeton unique (UUID) pour le scan
   date_inscription: string;
   statut_email: 'pending' | 'sent' | 'failed';
   scan_valide?: boolean;
   date_validation?: string;
 }
 
-export interface WebhookPayload extends Omit<Participant, 'id' | 'numero_ticket' | 'date_inscription' | 'statut_email'> {}
+export interface WebhookPayload extends Omit<Participant, 'id' | 'numero_ticket' | 'date_inscription' | 'statut_email' | 'token'> {}
 
 export interface TicketResponse {
   status: 'success' | 'error';

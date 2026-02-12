@@ -1,26 +1,29 @@
 
 import React from 'react';
 import { Participant } from '../types';
+import { QRCodeCanvas } from 'qrcode.react';
 
 interface TicketCardProps {
   participant: Participant;
 }
 
 const TicketCard: React.FC<TicketCardProps> = ({ participant }) => {
+  // Construction de l'URL de scan basée sur le token unique
+  const scanUrl = `${window.location.origin}/#/scan?token=${participant.token}`;
+
   return (
     <div className="relative w-full max-w-[420px] mx-auto select-none">
       {/* Badge Capture Container */}
       <div 
         id="badge-capture" 
         className="relative bg-white w-full rounded-[2rem] shadow-2xl border border-slate-200 flex flex-col overflow-hidden"
-        style={{ minHeight: '640px', width: '400px' }}
+        style={{ minHeight: '680px', width: '400px' }}
       >
         {/* TOP DECORATIVE BAR */}
         <div className="h-4 bg-assirou-gold w-full"></div>
 
         {/* HEADER SECTION */}
         <div className="bg-assirou-navy p-8 relative overflow-hidden">
-          {/* Subtle Background Pattern */}
           <div className="absolute inset-0 opacity-10 bg-[radial-gradient(#C5A022_1px,transparent_1px)] [background-size:20px_20px]"></div>
           
           <div className="relative z-10 flex flex-col items-center gap-4">
@@ -44,17 +47,17 @@ const TicketCard: React.FC<TicketCardProps> = ({ participant }) => {
         </div>
 
         {/* MAIN IDENTITY SECTION */}
-        <div className="px-8 pt-10 pb-6 flex-1 flex flex-col items-center text-center">
+        <div className="px-8 pt-8 pb-6 flex-1 flex flex-col items-center text-center">
           {/* Type Badge */}
-          <div className="bg-slate-50 border border-slate-100 px-4 py-1.5 rounded-full mb-8 flex items-center gap-2">
+          <div className="bg-slate-50 border border-slate-100 px-4 py-1.5 rounded-full mb-6 flex items-center gap-2">
              <div className={`w-2 h-2 rounded-full ${participant.scan_valide ? 'bg-green-500' : 'bg-assirou-gold'} animate-pulse`}></div>
              <span className="text-[10px] font-black uppercase tracking-widest text-assirou-navy">{participant.participation}</span>
           </div>
 
           {/* Participant Info */}
-          <div className="mb-8 w-full">
-            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-[0.2em] mb-3">Participant</p>
-            <h3 className="text-3xl font-black text-assirou-navy uppercase tracking-tighter leading-tight break-words mb-2 px-2">
+          <div className="mb-6 w-full">
+            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-[0.2em] mb-2">Participant</p>
+            <h3 className="text-2xl font-black text-assirou-navy uppercase tracking-tighter leading-tight break-words mb-2 px-2">
               {participant.nom_complet}
             </h3>
             <div className="flex items-center justify-center gap-2">
@@ -65,8 +68,26 @@ const TicketCard: React.FC<TicketCardProps> = ({ participant }) => {
             </div>
           </div>
 
+          {/* QR CODE SECTION */}
+          <div className="bg-white p-4 rounded-3xl border-2 border-slate-100 mb-6 shadow-inner">
+            <QRCodeCanvas 
+              value={scanUrl} 
+              size={120} 
+              level="H" 
+              includeMargin={false}
+              imageSettings={{
+                src: "https://www.google.com/s2/favicons?domain=assirou.com&sz=64",
+                x: undefined,
+                y: undefined,
+                height: 24,
+                width: 24,
+                excavate: true,
+              }}
+            />
+          </div>
+
           {/* Logistics Grid */}
-          <div className="grid grid-cols-2 gap-px bg-slate-100 w-full rounded-2xl overflow-hidden border border-slate-100 mb-8">
+          <div className="grid grid-cols-2 gap-px bg-slate-100 w-full rounded-2xl overflow-hidden border border-slate-100 mb-6">
             <div className="bg-white p-4 text-center">
               <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest mb-1">Date & Heure</p>
               <p className="text-[11px] font-black text-assirou-navy uppercase">05 MARS 2026<br/>10H - 16H</p>
@@ -78,26 +99,20 @@ const TicketCard: React.FC<TicketCardProps> = ({ participant }) => {
           </div>
 
           {/* REFERENCE SECTION */}
-          <div className="mt-auto w-full pt-6 border-t border-dashed border-slate-200">
-            {participant.avis_theme && (
-              <div className="mb-4 px-4">
-                 <p className="text-[8px] italic text-slate-400 line-clamp-2 text-center">"{participant.avis_theme}"</p>
-              </div>
-            )}
-            
-            <div className="bg-slate-50 rounded-2xl p-6 border border-slate-100 flex flex-col items-center gap-3">
-              <div className="flex items-center gap-2 mb-1">
+          <div className="mt-auto w-full pt-4 border-t border-dashed border-slate-200">
+            <div className="bg-slate-50 rounded-2xl p-4 border border-slate-100 flex flex-col items-center gap-2">
+              <div className="flex items-center gap-2">
                 <i className="fas fa-fingerprint text-assirou-gold text-xs"></i>
-                <p className="text-[9px] font-black text-slate-400 uppercase tracking-[0.3em]">Référence Unique du Badge</p>
+                <p className="text-[9px] font-black text-slate-400 uppercase tracking-[0.3em]">Pass Officiel</p>
               </div>
               
-              <div className="mono text-lg font-black text-assirou-navy bg-white px-6 py-3 rounded-xl border-2 border-slate-100 shadow-sm w-full text-center tracking-wider">
+              <div className="mono text-base font-black text-assirou-navy tracking-wider">
                 {participant.numero_ticket}
               </div>
 
-              <div className={`mt-2 inline-flex items-center gap-2 px-3 py-1 rounded-lg ${participant.scan_valide ? 'bg-green-50 text-green-600 border border-green-100' : 'bg-assirou-gold/10 text-assirou-navy border border-assirou-gold/20'}`}>
-                <i className={`fas ${participant.scan_valide ? 'fa-check-circle' : 'fa-shield-halved'} text-xs`}></i>
-                <span className="text-[9px] font-black uppercase tracking-widest">
+              <div className={`mt-1 inline-flex items-center gap-2 px-3 py-1 rounded-lg ${participant.scan_valide ? 'bg-green-50 text-green-600 border border-green-100' : 'bg-assirou-gold/10 text-assirou-navy border border-assirou-gold/20'}`}>
+                <i className={`fas ${participant.scan_valide ? 'fa-check-circle' : 'fa-shield-halved'} text-[10px]`}></i>
+                <span className="text-[8px] font-black uppercase tracking-widest">
                   {participant.scan_valide ? 'PASS VALIDÉ' : 'AUTHENTICITÉ GARANTIE'}
                 </span>
               </div>
@@ -115,9 +130,6 @@ const TicketCard: React.FC<TicketCardProps> = ({ participant }) => {
            </div>
         </div>
       </div>
-      
-      {/* Visual background element behind the card */}
-      <div className="absolute -z-10 top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[110%] h-[110%] bg-assirou-navy/5 blur-[120px] rounded-full"></div>
     </div>
   );
 };

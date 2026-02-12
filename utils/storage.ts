@@ -67,6 +67,19 @@ export const getParticipantByTicket = async (ticketInput: string): Promise<Parti
   ) || null;
 };
 
+export const getParticipantByToken = async (token: string): Promise<Participant | null> => {
+  try {
+    const { data } = await supabase
+      .from('participants')
+      .select('*')
+      .eq('token', token)
+      .maybeSingle();
+    return data as Participant || null;
+  } catch (e) {
+    return getFromLocal().find(p => p.token === token) || null;
+  }
+};
+
 export const validateTicket = async (id: string): Promise<boolean> => {
   try {
     const now = new Date().toISOString();
@@ -78,20 +91,19 @@ export const validateTicket = async (id: string): Promise<boolean> => {
   } catch (e) { return false; }
 };
 
-export const saveParticipant = async (participantData: Omit<Participant, 'id'>): Promise<boolean> => {
+export const saveParticipant = async (participantData: Omit<Participant, 'id' | 'token'>): Promise<boolean> => {
   const tempId = 'ID_' + Math.random().toString(36).substr(2, 9);
-  const fullParticipant = { ...participantData, id: tempId } as Participant;
+  const token = crypto.randomUUID();
+  const fullParticipant = { ...participantData, id: tempId, token } as Participant;
 
   try {
-    // Tentative Supabase
-    const { error } = await supabase.from('participants').insert([participantData]);
+    const { error } = await supabase.from('participants').insert([{ ...participantData, token }]);
     if (error) throw error;
     return true;
   } catch (e) {
     console.warn("Échec base de données, sauvegarde locale de secours activée:", e);
-    // Secours local
     saveToLocal(fullParticipant);
-    return true; // On retourne true pour que l'utilisateur puisse voir son badge
+    return true;
   }
 };
 
@@ -147,7 +159,7 @@ export const subscribeToParticipants = (callback: () => void) => {
 
 export const exportParticipantsToCSV = async () => {
   const participants = await getParticipants();
-  const headers = ["ID", "Nom Complet", "Email", "Telephone", "Organisation", "Type Participation", "Numero Ticket", "Date Inscription", "Scan Valide", "Date Validation"];
+  const headers = ["ID", "Nom Complet", "Email", "Telephone", "Organisation", "Type Participation", "Numero Ticket", "Token Scan", "Date Inscription", "Scan Valide", "Date Validation"];
   const rows = participants.map(p => [
     p.id, 
     p.nom_complet, 
@@ -155,7 +167,8 @@ export const exportParticipantsToCSV = async () => {
     p.telephone, 
     p.organisation_entreprise || 'N/A', 
     p.participation, 
-    p.numero_ticket, 
+    p.numero_ticket,
+    p.token,
     p.date_inscription, 
     p.scan_valide ? "OUI" : "NON", 
     p.date_validation || 'N/A'
