@@ -130,19 +130,19 @@ const PublicForm: React.FC = () => {
         <div className="h-full bg-assirou-gold transition-all duration-500 ease-out shadow-[0_0_10px_#C5A022]" style={{ width: `${(step/5)*100}%` }}></div>
       </div>
 
-      <div className="assirou-gradient w-full py-24 text-center text-white px-6 relative overflow-hidden">
+      <div className="assirou-gradient w-full py-20 text-center text-white px-6 relative overflow-hidden">
         <div className="absolute inset-0 opacity-15 bg-[url('https://www.transparenttextures.com/patterns/carbon-fibre.png')]"></div>
         <div className="relative z-10 animate-in fade-in duration-1000">
-          <div className="w-24 h-24 bg-white rounded-full flex items-center justify-center mx-auto mb-8 shadow-2xl border-4 border-assirou-gold">
-             <span className="text-assirou-navy text-4xl font-black tracking-tighter">AS</span>
+          <div className="w-20 h-20 bg-white rounded-full flex items-center justify-center mx-auto mb-6 shadow-2xl border-4 border-assirou-gold">
+             <span className="text-assirou-navy text-3xl font-black tracking-tighter">AS</span>
           </div>
           <div className="flex items-center justify-center gap-4 mb-4">
-             <p className="text-[10px] font-black uppercase tracking-[0.5em] text-assirou-gold">Assirou Sécurité</p>
+             <p className="text-[9px] font-black uppercase tracking-[0.5em] text-assirou-gold">Assirou Sécurité</p>
           </div>
-          <h1 className="text-3xl md:text-6xl font-black uppercase max-w-4xl mx-auto leading-[0.9] mb-8 tracking-tighter drop-shadow-lg">
-            FORUM MÉTIERS SÉCURITÉ 2026
+          <h1 className="text-2xl md:text-5xl font-black uppercase max-w-5xl mx-auto leading-[1.1] mb-8 tracking-tighter drop-shadow-lg">
+            DEUXIÈME FORUM SUR LES MÉTIERS DE LA SÉCURITÉ PRIVÉE AU SÉNÉGAL
           </h1>
-          <div className="flex flex-wrap justify-center gap-4 text-xs font-black tracking-[0.2em] uppercase">
+          <div className="flex flex-wrap justify-center gap-4 text-[10px] font-black tracking-[0.2em] uppercase">
             <div className="bg-white/10 px-8 py-3 rounded-2xl border border-white/5 backdrop-blur-md flex items-center gap-4">
               <span>05 MARS 2026</span>
               <span className="text-assirou-gold">•</span>
@@ -153,8 +153,8 @@ const PublicForm: React.FC = () => {
         </div>
       </div>
 
-      <div className="max-w-2xl mx-auto px-6 -mt-12 relative z-20">
-        <div className="bg-white rounded-[3.5rem] shadow-2xl p-10 md:p-16 border border-slate-100">
+      <div className="max-w-2xl mx-auto px-6 -mt-10 relative z-20">
+        <div className="bg-white rounded-[3rem] shadow-2xl p-8 md:p-14 border border-slate-100">
           
           <form onSubmit={handleSubmit} className="space-y-12">
             
@@ -218,7 +218,7 @@ const PublicForm: React.FC = () => {
                   <div className="space-y-2">
                     <label className="text-[11px] font-black uppercase text-slate-400 tracking-widest ml-1">Avis sur le thème du Forum</label>
                     <textarea 
-                      placeholder="Thème : La sécurité privée dans les grands événements sportifs et culturels. Votre avis ?" 
+                      placeholder="Thème : LA SÉCURITÉ PRIVÉE DANS LES GRANDS ÉVÉNEMENTS SPORTIFS ET CULTURELS. Votre avis ?" 
                       className="w-full p-6 bg-slate-50 border-2 border-transparent focus:border-assirou-gold focus:bg-white rounded-[2rem] outline-none shadow-inner min-h-[120px] resize-none" 
                       value={formData.avis_theme} 
                       onChange={e => setFormData({...formData, avis_theme: e.target.value})}
@@ -337,7 +337,7 @@ const PublicForm: React.FC = () => {
                     <div className="flex-1">
                       <p className="text-sm font-black text-assirou-navy uppercase tracking-tight mb-2">Consentement</p>
                       <p className="text-[11px] font-medium text-slate-500 leading-relaxed">
-                        Je confirme vouloir participer au Forum Sécurité 2026 et accepte de recevoir mon badge numérique certifié.
+                        Je confirme vouloir participer au Deuxième forum sur les métiers de la sécurité privée au Sénégal et accepte de recevoir mon badge numérique certifié.
                       </p>
                     </div>
                   </div>

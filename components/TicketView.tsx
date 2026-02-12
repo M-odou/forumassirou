@@ -57,7 +57,7 @@ const TicketView: React.FC = () => {
       });
       
       const link = document.createElement('a');
-      link.download = `PASS_FORUM2026_${participant?.nom_complet.replace(/\s+/g, '_').toUpperCase()}.png`;
+      link.download = `PASS_FORUM_2026_${participant?.nom_complet.replace(/\s+/g, '_').toUpperCase()}.png`;
       link.href = dataUrl;
       link.click();
     } catch (err) {
@@ -89,7 +89,7 @@ const TicketView: React.FC = () => {
       
       pdf.setFontSize(10);
       pdf.setTextColor(150);
-      pdf.text("BADGE OFFICIEL - FORUM SÉCURITÉ 2026", pdfWidth / 2, y - 10, { align: 'center' });
+      pdf.text("BADGE OFFICIEL - DEUXIÈME FORUM MÉTIERS SÉCURITÉ 2026", pdfWidth / 2, y - 10, { align: 'center' });
       
       pdf.addImage(dataUrl, 'PNG', x, y, badgeWidth, badgeHeight);
       
@@ -171,7 +171,7 @@ const TicketView: React.FC = () => {
                 Félicitations <br/><span className="text-assirou-gold">{participant.nom_complet.split(' ')[0]} !</span>
               </h1>
               <p className="text-slate-500 text-sm max-w-md mx-auto lg:mx-0 leading-relaxed">
-                Votre inscription au Forum Métiers de la Sécurité 2026 est confirmée. Téléchargez votre pass et présentez-le à l'entrée.
+                Votre inscription au Deuxième forum sur les métiers de la sécurité privée au Sénégal est confirmée. Téléchargez votre pass et présentez-le à l'entrée.
               </p>
            </div>
 

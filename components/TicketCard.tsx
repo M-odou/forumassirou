@@ -37,8 +37,8 @@ const TicketCard: React.FC<TicketCardProps> = ({ participant }) => {
             <div className="h-[1px] w-12 bg-assirou-gold/50 my-1"></div>
             
             <h2 className="text-white text-center">
-              <span className="block text-xs font-medium uppercase tracking-[0.3em] opacity-80 mb-1">Pass Officiel</span>
-              <span className="block text-xl font-black uppercase tracking-tighter leading-none">Forum Métiers <span className="text-assirou-gold">Sécurité</span></span>
+              <span className="block text-xs font-medium uppercase tracking-[0.3em] opacity-80 mb-2 leading-none">Deuxième Forum</span>
+              <span className="block text-lg font-black uppercase tracking-tighter leading-tight">Métiers de la <span className="text-assirou-gold">Sécurité Privée</span> au Sénégal</span>
             </h2>
           </div>
         </div>

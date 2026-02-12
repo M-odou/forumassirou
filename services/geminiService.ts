@@ -12,6 +12,7 @@ export const generateEmailContent = async (participant: Participant): Promise<st
       contents: `Rédige un e-mail de confirmation d'inscription extrêmement professionnel et chaleureux pour Assirou Sécurité.
       
       Contexte : Deuxième forum sur les métiers de la sécurité privée au Sénégal.
+      Thème : La sécurité privée dans les grands événements sportifs et culturels.
       Participant : ${participant.nom_complet}
       Organisation : ${participant.organisation_entreprise || 'Participant individuel'}
       Ticket ID : ${participant.numero_ticket}
@@ -19,6 +20,7 @@ export const generateEmailContent = async (participant: Participant): Promise<st
       
       L'email doit inclure :
       - Un ton institutionnel mais accueillant.
+      - Utilise impérativement le titre complet : "Deuxième forum sur les métiers de la sécurité privée au Sénégal".
       - Un rappel des détails (05 mars 2026, 10h00 - 16h00, CSC Thiaroye sur Mer).
       - Une instruction claire pour présenter ce badge numérique (le QR code sera scanné à l'entrée).
       - Une signature : La Direction d'Assirou Sécurité.`,
@@ -30,6 +32,6 @@ export const generateEmailContent = async (participant: Participant): Promise<st
     return response.text || "Merci pour votre inscription au Forum Sécurité 2026.";
   } catch (error) {
     console.error("Gemini Error:", error);
-    return "Votre inscription au Forum Sécurité 2026 est confirmée. Rendez-vous le 05 Mars à 10h.";
+    return "Votre inscription au Deuxième forum sur les métiers de la sécurité privée au Sénégal est confirmée. Rendez-vous le 05 Mars à 10h.";
   }
 };
