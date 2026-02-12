@@ -63,6 +63,11 @@ export const sendConfirmationEmail = async (participant: Participant): Promise<b
 };
 
 const updateMailStatus = async (ticketNum: string, status: 'sent' | 'failed') => {
+  if (!supabase) {
+    console.warn("Supabase non initialisé : impossible de mettre à jour le statut mail.");
+    return;
+  }
+  
   try {
     const { error } = await supabase
       .from('participants')

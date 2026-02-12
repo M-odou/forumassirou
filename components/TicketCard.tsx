@@ -1,23 +1,20 @@
 
 import React from 'react';
 import { Participant } from '../types';
-import { QRCodeCanvas } from 'qrcode.react';
+import Barcode from 'react-barcode';
 
 interface TicketCardProps {
   participant: Participant;
 }
 
 const TicketCard: React.FC<TicketCardProps> = ({ participant }) => {
-  // Construction de l'URL de scan basée sur le token unique
-  const scanUrl = `${window.location.origin}/#/scan?token=${participant.token}`;
-
   return (
     <div className="relative w-full max-w-[420px] mx-auto select-none">
       {/* Badge Capture Container */}
       <div 
         id="badge-capture" 
-        className="relative bg-white w-full rounded-[2rem] shadow-2xl border border-slate-200 flex flex-col overflow-hidden"
-        style={{ minHeight: '680px', width: '400px' }}
+        className="relative bg-white w-full rounded-[2.5rem] shadow-2xl border border-slate-200 flex flex-col overflow-hidden"
+        style={{ minHeight: '700px', width: '400px' }}
       >
         {/* TOP DECORATIVE BAR */}
         <div className="h-4 bg-assirou-gold w-full"></div>
@@ -47,72 +44,62 @@ const TicketCard: React.FC<TicketCardProps> = ({ participant }) => {
         </div>
 
         {/* MAIN IDENTITY SECTION */}
-        <div className="px-8 pt-8 pb-6 flex-1 flex flex-col items-center text-center">
+        <div className="px-8 pt-10 pb-6 flex-1 flex flex-col items-center text-center">
           {/* Type Badge */}
-          <div className="bg-slate-50 border border-slate-100 px-4 py-1.5 rounded-full mb-6 flex items-center gap-2">
+          <div className="bg-slate-50 border border-slate-100 px-5 py-2 rounded-full mb-8 flex items-center gap-2">
              <div className={`w-2 h-2 rounded-full ${participant.scan_valide ? 'bg-green-500' : 'bg-assirou-gold'} animate-pulse`}></div>
-             <span className="text-[10px] font-black uppercase tracking-widest text-assirou-navy">{participant.participation}</span>
+             <span className="text-[11px] font-black uppercase tracking-widest text-assirou-navy">{participant.participation}</span>
           </div>
 
           {/* Participant Info */}
-          <div className="mb-6 w-full">
-            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-[0.2em] mb-2">Participant</p>
-            <h3 className="text-2xl font-black text-assirou-navy uppercase tracking-tighter leading-tight break-words mb-2 px-2">
+          <div className="mb-10 w-full">
+            <p className="text-[11px] font-bold text-slate-400 uppercase tracking-[0.2em] mb-2">Participant</p>
+            <h3 className="text-3xl font-black text-assirou-navy uppercase tracking-tighter leading-tight break-words mb-2 px-2">
               {participant.nom_complet}
             </h3>
             <div className="flex items-center justify-center gap-2">
-               <i className="fas fa-building text-[10px] text-assirou-gold"></i>
-               <p className="text-assirou-navy/70 text-[11px] font-bold uppercase tracking-wide">
+               <i className="fas fa-building text-xs text-assirou-gold"></i>
+               <p className="text-assirou-navy/70 text-xs font-bold uppercase tracking-wide">
                  {participant.organisation_entreprise || 'Participation Individuelle'}
                </p>
             </div>
           </div>
 
-          {/* QR CODE SECTION */}
-          <div className="bg-white p-4 rounded-3xl border-2 border-slate-100 mb-6 shadow-inner">
-            <QRCodeCanvas 
-              value={scanUrl} 
-              size={120} 
-              level="H" 
-              includeMargin={false}
-              imageSettings={{
-                src: "https://www.google.com/s2/favicons?domain=assirou.com&sz=64",
-                x: undefined,
-                y: undefined,
-                height: 24,
-                width: 24,
-                excavate: true,
-              }}
-            />
-          </div>
-
           {/* Logistics Grid */}
-          <div className="grid grid-cols-2 gap-px bg-slate-100 w-full rounded-2xl overflow-hidden border border-slate-100 mb-6">
-            <div className="bg-white p-4 text-center">
-              <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest mb-1">Date & Heure</p>
-              <p className="text-[11px] font-black text-assirou-navy uppercase">05 MARS 2026<br/>10H - 16H</p>
+          <div className="grid grid-cols-2 gap-px bg-slate-100 w-full rounded-2xl overflow-hidden border border-slate-100 mb-10 shadow-sm">
+            <div className="bg-white p-5 text-center">
+              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Date & Heure</p>
+              <p className="text-xs font-black text-assirou-navy uppercase">05 MARS 2026<br/>10H - 16H</p>
             </div>
-            <div className="bg-white p-4 text-center">
-              <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest mb-1">Lieu</p>
+            <div className="bg-white p-5 text-center">
+              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Lieu</p>
               <p className="text-xs font-black text-assirou-navy uppercase">CSC Thiaroye</p>
             </div>
           </div>
 
-          {/* REFERENCE SECTION */}
-          <div className="mt-auto w-full pt-4 border-t border-dashed border-slate-200">
-            <div className="bg-slate-50 rounded-2xl p-4 border border-slate-100 flex flex-col items-center gap-2">
+          {/* REFERENCE & BARCODE SECTION (AT THE BOTTOM) */}
+          <div className="mt-auto w-full pt-6 border-t border-dashed border-slate-200">
+            <div className="bg-slate-50 rounded-[2rem] p-6 border border-slate-100 flex flex-col items-center gap-4">
               <div className="flex items-center gap-2">
                 <i className="fas fa-fingerprint text-assirou-gold text-xs"></i>
-                <p className="text-[9px] font-black text-slate-400 uppercase tracking-[0.3em]">Pass Officiel</p>
+                <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.3em]">Pass Officiel</p>
               </div>
               
-              <div className="mono text-base font-black text-assirou-navy tracking-wider">
-                {participant.numero_ticket}
+              <div className="w-full flex justify-center bg-white p-4 rounded-2xl shadow-sm border border-slate-100">
+                <Barcode 
+                  value={participant.numero_ticket} 
+                  width={1.5} 
+                  height={50} 
+                  fontSize={12}
+                  font="JetBrains Mono"
+                  background="transparent"
+                  margin={0}
+                />
               </div>
 
-              <div className={`mt-1 inline-flex items-center gap-2 px-3 py-1 rounded-lg ${participant.scan_valide ? 'bg-green-50 text-green-600 border border-green-100' : 'bg-assirou-gold/10 text-assirou-navy border border-assirou-gold/20'}`}>
+              <div className={`inline-flex items-center gap-2 px-4 py-1.5 rounded-xl ${participant.scan_valide ? 'bg-green-50 text-green-600 border border-green-100' : 'bg-assirou-gold/10 text-assirou-navy border border-assirou-gold/20'}`}>
                 <i className={`fas ${participant.scan_valide ? 'fa-check-circle' : 'fa-shield-halved'} text-[10px]`}></i>
-                <span className="text-[8px] font-black uppercase tracking-widest">
+                <span className="text-[9px] font-black uppercase tracking-widest">
                   {participant.scan_valide ? 'PASS VALIDÉ' : 'AUTHENTICITÉ GARANTIE'}
                 </span>
               </div>
@@ -121,12 +108,12 @@ const TicketCard: React.FC<TicketCardProps> = ({ participant }) => {
         </div>
 
         {/* FOOTER INFO BAR */}
-        <div className="bg-slate-50 py-3 px-8 flex justify-between items-center border-t border-slate-100">
-           <span className="text-[7px] font-black uppercase tracking-[0.3em] text-slate-400">Certifié par Assirou Sécurité</span>
+        <div className="bg-slate-50 py-4 px-8 flex justify-between items-center border-t border-slate-100">
+           <span className="text-[8px] font-black uppercase tracking-[0.3em] text-slate-400">Certifié par Assirou Sécurité</span>
            <div className="flex gap-2">
-              <div className="w-1.5 h-1.5 rounded-full bg-assirou-navy/20"></div>
-              <div className="w-1.5 h-1.5 rounded-full bg-assirou-navy/20"></div>
-              <div className="w-1.5 h-1.5 rounded-full bg-assirou-navy/20"></div>
+              <div className="w-2 h-2 rounded-full bg-assirou-navy/20"></div>
+              <div className="w-2 h-2 rounded-full bg-assirou-navy/20"></div>
+              <div className="w-2 h-2 rounded-full bg-assirou-navy/20"></div>
            </div>
         </div>
       </div>

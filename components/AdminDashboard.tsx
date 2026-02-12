@@ -25,7 +25,11 @@ const AdminDashboard: React.FC = () => {
   useEffect(() => {
     loadData();
     const sub = subscribeToParticipants(loadData);
-    return () => { if (sub) supabase.removeChannel(sub); };
+    return () => { 
+      if (sub && supabase) {
+        supabase.removeChannel(sub);
+      }
+    };
   }, [loadData]);
 
   const handleDelete = async (id: string, name: string) => {
