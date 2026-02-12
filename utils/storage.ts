@@ -48,13 +48,15 @@ export const getParticipants = async (): Promise<Participant[]> => {
       
       if (error) {
         console.error("Supabase Error:", error.message);
-      } else {
-        remoteData = (data || []).map(p => ({
+      } else if (data) {
+        remoteData = data.map(p => ({
           ...p,
           canal_forum: p.canal_forum || [],
           canal_assirou: p.canal_assirou || [],
           type_formation: p.type_formation || [],
-          services_interesses: p.services_interesses || []
+          services_interesses: p.services_interesses || [],
+          nom_complet: p.nom_complet || 'Inconnu',
+          numero_ticket: p.numero_ticket || 'SANS-TICKET'
         }));
       }
     } catch (e) {
@@ -65,6 +67,7 @@ export const getParticipants = async (): Promise<Participant[]> => {
   const localData = getFromLocal();
   const combinedMap = new Map<string, Participant>();
   
+  // On fusionne Local + Cloud en utilisant le numero_ticket comme clé unique
   localData.forEach(p => { if (p.numero_ticket) combinedMap.set(p.numero_ticket, p); });
   remoteData.forEach(p => { if (p.numero_ticket) combinedMap.set(p.numero_ticket, p); });
 
@@ -81,17 +84,19 @@ export const saveParticipant = async (participantData: Omit<Participant, 'id' | 
     try {
       const { error } = await supabase.from('participants').insert([newParticipant]);
       if (!error) return true;
+      console.error("DB Insert Error:", error);
     } catch (e) {
       console.error("Supabase Insert Error:", e);
     }
   }
   
+  // Fallback local en cas d'échec
   saveToLocal({ ...newParticipant, id: 'temp_' + Date.now() } as Participant);
   return true;
 };
 
 export const deleteParticipant = async (id: string): Promise<boolean> => {
-  if (supabase && !id.startsWith('temp_')) {
+  if (supabase && !id.toString().startsWith('temp_')) {
     try {
       await supabase.from('participants').delete().eq('id', id);
     } catch (e) {}
@@ -103,7 +108,7 @@ export const deleteParticipant = async (id: string): Promise<boolean> => {
 
 export const validateTicket = async (id: string): Promise<boolean> => {
   const now = new Date().toISOString();
-  if (supabase && !id.startsWith('temp_')) {
+  if (supabase && !id.toString().startsWith('temp_')) {
     try {
       await supabase.from('participants').update({ scan_valide: true, date_validation: now }).eq('id', id);
     } catch (e) {}
@@ -145,7 +150,6 @@ export const isRegistrationActive = async () => {
   return true;
 };
 
-// Fix: Added missing isScanSystemActive function to resolve import errors in TicketView and ScanPage
 export const isScanSystemActive = async () => {
   if (supabase) {
     try {
@@ -170,18 +174,27 @@ export const generateTicketNumber = async () => {
 
 export const subscribeToParticipants = (cb: () => void) => {
   if (!supabase) return null;
-  return supabase.channel('participants_changes').on('postgres_changes', { event: '*', schema: 'public', table: 'participants' }, cb).subscribe();
+  return supabase.channel('any').on('postgres_changes', { event: '*', schema: 'public', table: 'participants' }, cb).subscribe();
 };
 
 export const exportParticipantsToCSV = async () => {
   const data = await getParticipants();
   const headers = ["Nom", "Email", "Tel", "Orga", "Type", "Ticket", "Date", "Valide"];
-  const rows = data.map(p => [p.nom_complet, p.adresse_email, p.telephone, p.organisation_entreprise, p.participation, p.numero_ticket, p.date_inscription, p.scan_valide ? "OUI" : "NON"]);
+  const rows = data.map(p => [
+    p.nom_complet, 
+    p.adresse_email, 
+    p.telephone, 
+    p.organisation_entreprise || '', 
+    p.participation, 
+    p.numero_ticket, 
+    p.date_inscription, 
+    p.scan_valide ? "OUI" : "NON"
+  ]);
   const csv = [headers.join(','), ...rows.map(r => r.join(','))].join('\n');
   const blob = new Blob([csv], { type: 'text/csv' });
   const url = window.URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.href = url;
-  a.download = 'participants.csv';
+  a.download = `participants_forum_${new Date().toISOString().split('T')[0]}.csv`;
   a.click();
 };

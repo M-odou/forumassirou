@@ -21,6 +21,7 @@ const AdminDashboard: React.FC = () => {
       setActive(regStatus);
       setStatus(supabase ? 'cloud' : 'local');
     } catch (e) {
+      console.error("Fetch Error:", e);
       setStatus('error');
     } finally {
       setLoading(false);
@@ -30,7 +31,11 @@ const AdminDashboard: React.FC = () => {
   useEffect(() => {
     refreshData();
     const channel = subscribeToParticipants(refreshData);
-    return () => { if (channel && supabase) supabase.removeChannel(channel); };
+    return () => { 
+      if (channel && supabase) {
+        supabase.removeChannel(channel);
+      }
+    };
   }, [refreshData]);
 
   const handleDelete = async (p: Participant) => {
@@ -64,15 +69,19 @@ const AdminDashboard: React.FC = () => {
               <h1 className="text-3xl font-black uppercase tracking-tighter">Tableau de <span className="text-assirou-gold">Bord</span></h1>
               {status === 'cloud' ? (
                 <span className="bg-green-500/10 text-green-500 text-[8px] font-black uppercase px-2 py-1 rounded-full border border-green-500/20 flex items-center gap-1">
-                  <span className="w-1 h-1 bg-green-500 rounded-full animate-pulse"></span> Connecté Cloud
+                  <span className="w-1 h-1 bg-green-500 rounded-full animate-pulse"></span> Cloud Connecté
+                </span>
+              ) : status === 'error' ? (
+                <span className="bg-red-500/10 text-red-500 text-[8px] font-black uppercase px-2 py-1 rounded-full border border-red-500/20">
+                  Erreur de Connexion
                 </span>
               ) : (
-                <span className="bg-orange-500/10 text-orange-500 text-[8px] font-black uppercase px-2 py-1 rounded-full border border-orange-500/20 flex items-center gap-1">
+                <span className="bg-orange-500/10 text-orange-500 text-[8px] font-black uppercase px-2 py-1 rounded-full border border-orange-500/20">
                   Mode Local
                 </span>
               )}
             </div>
-            <p className="text-slate-500 text-xs font-bold uppercase tracking-widest">Forum Sécurité 2026 • Gestion des Inscriptions</p>
+            <p className="text-slate-500 text-xs font-bold uppercase tracking-widest">Forum Sécurité 2026 • Inscriptions en direct</p>
           </div>
           
           <div className="flex flex-wrap gap-3">
@@ -83,7 +92,7 @@ const AdminDashboard: React.FC = () => {
               onClick={async () => { const n = !active; await setRegistrationStatus(n); setActive(n); }}
               className={`px-6 py-3 rounded-2xl text-[10px] font-black uppercase transition-all border ${active ? 'bg-green-600/10 text-green-500 border-green-500/30' : 'bg-red-600/10 text-red-500 border-red-500/30'}`}
             >
-              Inscriptions: {active ? 'Ouvertes' : 'Fermées'}
+              Inscriptions: {active ? 'OUVERTES' : 'FERMÉES'}
             </button>
             <button onClick={refreshData} className="w-12 h-12 bg-white/5 hover:bg-white/10 border border-white/10 rounded-2xl flex items-center justify-center transition-all">
               <i className={`fas fa-sync-alt ${loading ? 'fa-spin text-assirou-gold' : ''}`}></i>
@@ -120,7 +129,6 @@ const AdminDashboard: React.FC = () => {
                 <tr className="border-b border-white/5 text-[10px] font-black text-slate-500 uppercase tracking-widest bg-white/[0.02]">
                   <th className="px-8 py-6">Participant</th>
                   <th className="px-8 py-6">Organisation</th>
-                  <th className="px-8 py-6">Type</th>
                   <th className="px-8 py-6">Ticket</th>
                   <th className="px-8 py-6">Status</th>
                   <th className="px-8 py-6 text-right">Actions</th>
@@ -135,9 +143,6 @@ const AdminDashboard: React.FC = () => {
                     </td>
                     <td className="px-8 py-6 text-sm font-medium text-slate-400">
                       {p.organisation_entreprise || '—'}
-                    </td>
-                    <td className="px-8 py-6">
-                      <span className="text-[10px] font-black text-assirou-gold uppercase">{p.participation}</span>
                     </td>
                     <td className="px-8 py-6 mono text-[10px] font-bold text-slate-500">
                       {p.numero_ticket}
@@ -155,15 +160,15 @@ const AdminDashboard: React.FC = () => {
                     </td>
                     <td className="px-8 py-6 text-right">
                       <div className="flex justify-end gap-2">
-                        <button onClick={() => setSelected(p)} className="w-9 h-9 bg-white/5 rounded-xl flex items-center justify-center hover:bg-assirou-gold hover:text-assirou-navy transition-all border border-white/5">
+                        <button onClick={() => setSelected(p)} className="w-9 h-9 bg-white/5 rounded-xl flex items-center justify-center hover:bg-assirou-gold hover:text-assirou-navy transition-all border border-white/5" title="Détails">
                           <i className="fas fa-eye text-xs"></i>
                         </button>
                         {!p.scan_valide && (
-                          <button onClick={() => handleValidate(p)} className="w-9 h-9 bg-white/5 rounded-xl flex items-center justify-center hover:bg-green-600 text-green-500 hover:text-white transition-all border border-white/5">
+                          <button onClick={() => handleValidate(p)} className="w-9 h-9 bg-white/5 rounded-xl flex items-center justify-center hover:bg-green-600 text-green-500 hover:text-white transition-all border border-white/5" title="Valider">
                             <i className="fas fa-user-check text-xs"></i>
                           </button>
                         )}
-                        <button onClick={() => handleDelete(p)} className="w-9 h-9 bg-white/5 rounded-xl flex items-center justify-center hover:bg-red-600 text-red-500 hover:text-white transition-all border border-white/5">
+                        <button onClick={() => handleDelete(p)} className="w-9 h-9 bg-white/5 rounded-xl flex items-center justify-center hover:bg-red-600 text-red-500 hover:text-white transition-all border border-white/5" title="Supprimer">
                           <i className="fas fa-trash-alt text-xs"></i>
                         </button>
                       </div>
@@ -171,16 +176,16 @@ const AdminDashboard: React.FC = () => {
                   </tr>
                 )) : (
                   <tr>
-                    <td colSpan={6} className="px-8 py-32 text-center">
+                    <td colSpan={5} className="px-8 py-32 text-center">
                       {loading ? (
                         <div className="flex flex-col items-center gap-4">
                           <div className="w-10 h-10 border-2 border-assirou-gold border-t-transparent rounded-full animate-spin"></div>
-                          <p className="text-[10px] font-black uppercase text-slate-500 tracking-[0.3em]">Chargement des données...</p>
+                          <p className="text-[10px] font-black uppercase text-slate-500 tracking-[0.3em]">Mise à jour...</p>
                         </div>
                       ) : (
                         <div className="flex flex-col items-center gap-4">
-                          <i className="fas fa-folder-open text-4xl text-slate-800"></i>
-                          <p className="text-slate-500 font-bold uppercase text-[10px] tracking-widest">Aucune soumission trouvée</p>
+                          <i className="fas fa-inbox text-4xl text-slate-800"></i>
+                          <p className="text-slate-500 font-bold uppercase text-[10px] tracking-widest">Aucun participant trouvé</p>
                         </div>
                       )}
                     </td>
@@ -220,31 +225,21 @@ const AdminDashboard: React.FC = () => {
                   <p className="text-sm font-bold text-white">{selected.organisation_entreprise || 'N/A'}</p>
                 </div>
                 <div className="space-y-1">
-                  <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Fonction</p>
-                  <p className="text-sm font-bold text-white">{selected.fonction || 'N/A'}</p>
+                  <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Catégorie</p>
+                  <p className="text-sm font-bold text-white">{selected.participation}</p>
                 </div>
               </div>
               <div className="bg-white/5 p-6 rounded-3xl border border-white/5">
-                <p className="text-[10px] font-black text-assirou-gold uppercase tracking-widest mb-3">Avis sur le thème</p>
+                <p className="text-[10px] font-black text-assirou-gold uppercase tracking-widest mb-3">Vision sur le thème</p>
                 <p className="text-sm text-slate-300 italic leading-relaxed">
-                  {selected.avis_theme ? `"${selected.avis_theme}"` : "Aucun avis laissé."}
+                  {selected.avis_theme ? `"${selected.avis_theme}"` : "Aucun avis formulé."}
                 </p>
-              </div>
-              <div className="grid grid-cols-2 gap-4">
-                 <div className="p-4 bg-white/5 rounded-2xl border border-white/5">
-                    <p className="text-[9px] font-black text-slate-500 uppercase mb-2">Formations</p>
-                    <p className="text-xs font-bold text-white">{selected.souhait_formation === 'Oui' ? selected.type_formation.join(', ') : 'Aucune'}</p>
-                 </div>
-                 <div className="p-4 bg-white/5 rounded-2xl border border-white/5">
-                    <p className="text-[9px] font-black text-slate-500 uppercase mb-2">Services</p>
-                    <p className="text-xs font-bold text-white">{selected.interet_services === 'Oui' ? selected.services_interesses.join(', ') : 'Aucun'}</p>
-                 </div>
               </div>
             </div>
             <div className="p-8 border-t border-white/10 flex gap-4 bg-black/20">
               <button onClick={() => setSelected(null)} className="flex-1 py-4 bg-white/5 rounded-2xl font-black text-[10px] uppercase tracking-widest hover:bg-white/10 transition-all">Fermer</button>
               <button onClick={() => openMailClient(selected)} className="flex-1 py-4 bg-assirou-gold text-assirou-navy rounded-2xl font-black text-[10px] uppercase tracking-widest hover:brightness-110 transition-all flex items-center justify-center gap-2">
-                <i className="fas fa-paper-plane"></i> Contacter
+                <i className="fas fa-paper-plane"></i> Envoyer Mail
               </button>
             </div>
           </div>
