@@ -1,7 +1,7 @@
 
 import React, { useEffect, useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
-import { getParticipantByTicket } from '../utils/storage';
+import { getParticipantByTicket, validateTicket, isScanSystemActive } from '../utils/storage';
 import { Participant } from '../types';
 import TicketCard from './TicketCard';
 import { toPng } from 'html-to-image';
@@ -17,9 +17,21 @@ const TicketView: React.FC = () => {
     const load = async () => {
       if (!ticketId) return;
       setLoading(true);
-      // On tente de récupérer le participant
+      
       const found = await getParticipantByTicket(ticketId);
       setParticipant(found);
+      
+      // LOGIQUE DE VALIDATION AU SCAN
+      if (found && !found.scan_valide) {
+        const scanActive = await isScanSystemActive();
+        if (scanActive) {
+          await validateTicket(found.id);
+          // On recharge les données pour l'UI
+          const updated = await getParticipantByTicket(ticketId);
+          setParticipant(updated);
+        }
+      }
+      
       setLoading(false);
     };
     load();
@@ -29,14 +41,11 @@ const TicketView: React.FC = () => {
     const node = document.getElementById('badge-capture');
     if (!node) return;
     setDownloading(true);
-    
-    // On attend un petit délai pour être sûr que les images externes (QR) sont rendues
     await new Promise(resolve => setTimeout(resolve, 500));
-
     try {
       const dataUrl = await toPng(node, { 
         quality: 1, 
-        pixelRatio: 4, // Augmenté pour une netteté maximale
+        pixelRatio: 4,
         backgroundColor: '#ffffff',
         cacheBust: true,
       });
@@ -46,7 +55,7 @@ const TicketView: React.FC = () => {
       link.click();
     } catch (err) {
       console.error("Erreur téléchargement image:", err);
-      alert("Erreur lors de la génération de l'image. Veuillez réessayer.");
+      alert("Erreur lors de la génération de l'image.");
     } finally {
       setDownloading(false);
     }
@@ -56,16 +65,13 @@ const TicketView: React.FC = () => {
     const node = document.getElementById('badge-capture');
     if (!node) return;
     setDownloading(true);
-    
     await new Promise(resolve => setTimeout(resolve, 500));
-
     try {
       const dataUrl = await toPng(node, { quality: 1, pixelRatio: 2, cacheBust: true });
       const pdf = new jsPDF('p', 'mm', 'a4');
       const imgProps = pdf.getImageProperties(dataUrl);
       const pdfWidth = pdf.internal.pageSize.getWidth();
       const pdfHeight = (imgProps.height * pdfWidth) / imgProps.width;
-      
       pdf.addImage(dataUrl, 'PNG', 0, 0, pdfWidth, pdfHeight);
       pdf.save(`pass-officiel-${participant?.numero_ticket}.pdf`);
     } catch (err) {
@@ -95,19 +101,9 @@ const TicketView: React.FC = () => {
               <i className="fas fa-times text-3xl"></i>
             </div>
           </div>
-          
           <h2 className="text-5xl font-black text-[#6B1414] uppercase tracking-tighter leading-none mb-6">Pass Invalide</h2>
-          
-          <p className="text-[#A35D5D] text-lg font-medium italic mb-16 max-w-xs leading-snug">
-            Ce ticket n'existe pas ou a été révoqué.
-          </p>
-          
-          <Link 
-            to="/" 
-            className="w-full py-6 bg-[#7B1717] text-white rounded-[2rem] font-black uppercase text-sm tracking-widest shadow-[0_10px_30px_rgba(123,23,23,0.3)] hover:bg-[#5A1111] transition-all transform hover:scale-105 active:scale-95"
-          >
-            Retour à l'accueil
-          </Link>
+          <p className="text-[#A35D5D] text-lg font-medium italic mb-16 max-w-xs leading-snug">Ce ticket n'existe pas ou a été révoqué.</p>
+          <Link to="/" className="w-full py-6 bg-[#7B1717] text-white rounded-[2rem] font-black uppercase text-sm tracking-widest shadow-[0_10px_30px_rgba(123,23,23,0.3)] hover:bg-[#5A1111] transition-all transform hover:scale-105 active:scale-95">Retour à l'accueil</Link>
         </div>
       </div>
     );
@@ -117,47 +113,39 @@ const TicketView: React.FC = () => {
     <div className="min-h-screen bg-slate-50 flex flex-col items-center p-8 md:p-20 relative">
       <div className="absolute inset-0 opacity-[0.03] pointer-events-none bg-[url('https://www.transparenttextures.com/patterns/carbon-fibre.png')]"></div>
 
-      {/* HEADER DE LA VUE */}
       <div className="w-full max-w-5xl flex flex-col md:flex-row justify-between items-center mb-16 gap-8 relative z-10">
         <div className="text-center md:text-left">
            <div className="flex items-center gap-3 justify-center md:justify-start mb-2">
-              <span className="w-3 h-3 rounded-full bg-green-500 shadow-[0_0_10px_#22c55e]"></span>
-              <span className="text-[10px] font-black text-green-600 uppercase tracking-[0.3em]">Badge Authentifié</span>
+              <span className={`w-3 h-3 rounded-full ${participant.scan_valide ? 'bg-green-500 shadow-[0_0_10px_#22c55e]' : 'bg-assirou-gold'}`}></span>
+              <span className={`text-[10px] font-black uppercase tracking-[0.3em] ${participant.scan_valide ? 'text-green-600' : 'text-assirou-gold'}`}>
+                {participant.scan_valide ? 'PASS VALIDÉ' : 'PASS AUTHENTIFIÉ'}
+              </span>
            </div>
            <h1 className="text-4xl font-black text-assirou-navy uppercase tracking-tighter">VOTRE PASS OFFICIEL</h1>
            <p className="text-slate-400 font-medium italic text-sm">Veuillez présenter ce badge à l'entrée du forum.</p>
         </div>
         <div className="flex gap-4 no-print">
-          <button 
-            onClick={handleDownloadImage} 
-            disabled={downloading}
-            className="px-8 py-4 bg-white border border-slate-200 text-assirou-navy rounded-2xl font-black text-[10px] uppercase tracking-widest hover:bg-slate-50 transition-all flex items-center gap-3 shadow-sm"
-          >
-            {downloading ? <i className="fas fa-spinner fa-spin"></i> : <i className="fas fa-image"></i>}
-            Sauvegarder Image
+          <button onClick={handleDownloadImage} disabled={downloading} className="px-8 py-4 bg-white border border-slate-200 text-assirou-navy rounded-2xl font-black text-[10px] uppercase tracking-widest hover:bg-slate-50 transition-all flex items-center gap-3 shadow-sm">
+            {downloading ? <i className="fas fa-spinner fa-spin"></i> : <i className="fas fa-image"></i>} Sauvegarder Image
           </button>
-          <button 
-            onClick={handleDownloadPDF}
-            disabled={downloading}
-            className="px-8 py-4 bg-assirou-navy text-white rounded-2xl font-black text-[10px] uppercase tracking-widest hover:bg-assirou-gold transition-all flex items-center gap-3 shadow-xl"
-          >
-            {downloading ? <i className="fas fa-spinner fa-spin"></i> : <i className="fas fa-file-pdf"></i>}
-            Télécharger PDF
+          <button onClick={handleDownloadPDF} disabled={downloading} className="px-8 py-4 bg-assirou-navy text-white rounded-2xl font-black text-[10px] uppercase tracking-widest hover:bg-assirou-gold transition-all flex items-center gap-3 shadow-xl">
+            {downloading ? <i className="fas fa-spinner fa-spin"></i> : <i className="fas fa-file-pdf"></i>} Télécharger PDF
           </button>
         </div>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-20 items-center w-full max-w-6xl relative z-10">
-        
-        {/* LE BADGE REDESIGNÉ */}
         <div className="flex justify-center animate-in fade-in slide-in-from-left-8 duration-700">
            <TicketCard participant={participant} />
         </div>
 
-        {/* INFOS DE SCAN RAPIDE */}
         <div className="space-y-12 animate-in fade-in slide-in-from-right-8 duration-700">
           <div className="bg-white p-12 rounded-[3.5rem] shadow-2xl border border-slate-100 relative overflow-hidden group">
-            <div className="absolute top-0 right-0 w-32 h-32 bg-green-500/5 rounded-full -mr-16 -mt-16 group-hover:scale-150 transition-transform duration-700"></div>
+            {participant.scan_valide && (
+              <div className="absolute top-0 right-0 bg-green-500 text-white px-8 py-2 rounded-bl-3xl font-black uppercase text-[10px] tracking-widest shadow-lg animate-in slide-in-from-top-4">
+                <i className="fas fa-check-circle mr-2"></i> VALIDÉ
+              </div>
+            )}
             
             <p className="text-[12px] font-black text-slate-300 uppercase tracking-[0.8em] mb-8">Scan Rapide</p>
             <h2 className="text-6xl md:text-7xl font-black text-assirou-navy uppercase tracking-tighter leading-[0.85] mb-8 drop-shadow-sm">
@@ -174,17 +162,27 @@ const TicketView: React.FC = () => {
                   <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Catégorie</span>
                   <span className="bg-assirou-navy text-white px-4 py-1 rounded-full text-[9px] font-black uppercase tracking-widest">{participant.participation}</span>
                </div>
+               {participant.scan_valide && (
+                  <div className="flex justify-between items-center pt-2">
+                     <span className="text-[10px] font-black text-green-600 uppercase tracking-widest">Validé le</span>
+                     <span className="text-[11px] font-black text-green-600">{new Date(participant.date_validation!).toLocaleString()}</span>
+                  </div>
+               )}
             </div>
           </div>
 
           <div className="bg-assirou-navy p-10 rounded-[3rem] text-white flex items-center gap-8 shadow-2xl relative overflow-hidden">
              <div className="absolute inset-0 opacity-10 bg-[url('https://www.transparenttextures.com/patterns/carbon-fibre.png')]"></div>
              <div className="w-20 h-20 bg-white/10 rounded-3xl flex items-center justify-center shrink-0 border border-white/10 backdrop-blur-xl">
-                <i className="fas fa-qrcode text-3xl text-assirou-gold"></i>
+                <i className={`fas ${participant.scan_valide ? 'fa-check-double text-green-400' : 'fa-qrcode text-assirou-gold'} text-3xl`}></i>
              </div>
              <div>
                 <h4 className="font-black text-lg uppercase tracking-tight mb-1">Badge de Sécurité</h4>
-                <p className="text-xs text-white/50 leading-relaxed font-medium">Ce pass est strictement personnel. Il doit être présenté sous format numérique ou imprimé lors du contrôle à l'entrée du CSC Thiaroye sur Mer.</p>
+                <p className="text-xs text-white/50 leading-relaxed font-medium">
+                  {participant.scan_valide 
+                    ? "Ce pass a été scanné avec succès et enregistré dans notre système de sécurité."
+                    : "Ce pass est strictement personnel. Il doit être présenté sous format numérique ou imprimé lors du contrôle."}
+                </p>
              </div>
           </div>
           
@@ -194,16 +192,7 @@ const TicketView: React.FC = () => {
              </Link>
           </div>
         </div>
-
       </div>
-
-      <style>{`
-        @media print {
-          .no-print { display: none !important; }
-          body { background: white !important; }
-          .min-h-screen { min-height: auto !important; padding: 0 !important; }
-        }
-      `}</style>
     </div>
   );
 };

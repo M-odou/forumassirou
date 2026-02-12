@@ -49,23 +49,16 @@ export const getParticipants = async (): Promise<Participant[]> => {
 export const getParticipantByTicket = async (ticketInput: string): Promise<Participant | null> => {
   if (!ticketInput) return null;
   
-  // Nettoyage agressif de l'input (pour supporter URL complète ou ID seul)
   let cleanId = ticketInput.trim();
-  
-  // Si c'est une URL, on prend la dernière partie après le dernier slash
   if (cleanId.includes('/')) {
     cleanId = cleanId.split('/').pop() || cleanId;
   }
-  
-  // Si il reste un hash (#), on prend ce qui est après
   if (cleanId.includes('#')) {
     cleanId = cleanId.split('#').pop() || cleanId;
   }
-
   cleanId = cleanId.toUpperCase();
 
   try {
-    // Recherche par correspondance exacte ou partielle sur le numéro de ticket
     const { data, error } = await supabase
       .from('participants')
       .select('*')
@@ -77,11 +70,25 @@ export const getParticipantByTicket = async (ticketInput: string): Promise<Parti
     console.error("Erreur recherche Supabase:", e);
   }
 
-  // Fallback local (utile si on scanne sur le même appareil)
   return getFromLocal().find(p => 
     p.numero_ticket.toUpperCase().includes(cleanId) || 
     p.id.toUpperCase().includes(cleanId)
   ) || null;
+};
+
+export const validateTicket = async (id: string): Promise<boolean> => {
+  try {
+    const now = new Date().toISOString();
+    const { error } = await supabase
+      .from('participants')
+      .update({ scan_valide: true, date_validation: now })
+      .eq('id', id);
+    if (error) throw error;
+    return true;
+  } catch (e) {
+    console.error("Erreur validation ticket:", e);
+    return false;
+  }
 };
 
 export const saveParticipant = async (participantData: Omit<Participant, 'id'>): Promise<boolean> => {
@@ -132,14 +139,27 @@ export const setRegistrationStatus = async (active: boolean): Promise<void> => {
   } catch (e) {}
 };
 
+export const isScanSystemActive = async (): Promise<boolean> => {
+  try {
+    const { data } = await supabase.from('settings').select('value').eq('key', 'scan_active').maybeSingle();
+    return data ? data.value === 'true' : true;
+  } catch (e) { return true; }
+};
+
+export const setScanSystemStatus = async (active: boolean): Promise<void> => {
+  try {
+    await supabase.from('settings').upsert({ key: 'scan_active', value: active.toString() });
+  } catch (e) {}
+};
+
 export const subscribeToParticipants = (callback: () => void) => {
   return supabase.channel('any').on('postgres_changes', { event: '*', schema: 'public', table: 'participants' }, callback).subscribe();
 };
 
 export const exportParticipantsToCSV = async () => {
   const participants = await getParticipants();
-  const headers = ["Ticket", "Nom", "Email", "Tel", "Structure"];
-  const rows = participants.map(p => [p.numero_ticket, p.nom_complet, p.adresse_email, p.telephone, p.organisation_entreprise]);
+  const headers = ["Ticket", "Nom", "Email", "Tel", "Structure", "Scan Valide"];
+  const rows = participants.map(p => [p.numero_ticket, p.nom_complet, p.adresse_email, p.telephone, p.organisation_entreprise, p.scan_valide ? "OUI" : "NON"]);
   const csvContent = "data:text/csv;charset=utf-8," + [headers.join(","), ...rows.map(e => e.join(","))].join("\n");
   const link = document.createElement("a");
   link.setAttribute("href", encodeURI(csvContent));

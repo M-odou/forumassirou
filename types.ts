@@ -18,6 +18,8 @@ export interface Participant {
   numero_ticket: string;
   date_inscription: string;
   statut_email: 'pending' | 'sent' | 'failed';
+  scan_valide?: boolean;
+  date_validation?: string;
 }
 
 export interface WebhookPayload extends Omit<Participant, 'id' | 'numero_ticket' | 'date_inscription' | 'statut_email'> {}

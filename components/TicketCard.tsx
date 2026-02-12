@@ -1,18 +1,23 @@
 
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { Participant } from '../types';
+import { isScanSystemActive } from '../utils/storage';
 
 interface TicketCardProps {
   participant: Participant;
 }
 
 const TicketCard: React.FC<TicketCardProps> = ({ participant }) => {
-  // Construction propre de l'URL sans double slash
+  const [scanActive, setScanActive] = useState(true);
+
+  useEffect(() => {
+    isScanSystemActive().then(setScanActive);
+  }, []);
+
   const baseUrl = window.location.origin + window.location.pathname;
   const cleanBase = baseUrl.endsWith('/') ? baseUrl.slice(0, -1) : baseUrl;
   const validationUrl = `${cleanBase}/#/ticket/${participant.numero_ticket}`;
   
-  // Utilisation de crossOrigin pour permettre à html-to-image de capturer l'image externe
   const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=400x400&data=${encodeURIComponent(validationUrl)}&color=002157&bgcolor=ffffff&qzone=1&ecc=H`;
 
   return (
@@ -91,25 +96,36 @@ const TicketCard: React.FC<TicketCardProps> = ({ participant }) => {
                 <p className="mono text-xl font-black text-assirou-navy bg-slate-50 px-4 py-1 rounded-xl border border-slate-100">{participant.numero_ticket.split('-').pop()}</p>
               </div>
               <div className="flex items-center gap-2">
-                <i className="fas fa-check-circle text-green-500 text-lg"></i>
+                <i className={`fas ${participant.scan_valide ? 'fa-check-double text-green-500' : 'fa-check-circle text-slate-200'} text-lg`}></i>
                 <div className="leading-none">
-                  <span className="block text-[8px] font-black uppercase tracking-widest text-assirou-navy">Identité Vérifiée</span>
+                  <span className={`block text-[8px] font-black uppercase tracking-widest ${participant.scan_valide ? 'text-green-600' : 'text-assirou-navy'}`}>
+                    {participant.scan_valide ? 'Pass Déjà Validé' : 'Identité Certifiée'}
+                  </span>
                   <span className="block text-[7px] font-bold text-slate-400 uppercase">Système Assirou 2.0</span>
                 </div>
               </div>
             </div>
 
             <div className="relative group/qr">
-              <div className="absolute inset-0 bg-assirou-navy opacity-0 group-hover/qr:opacity-5 transition-opacity rounded-2xl"></div>
-              <div className="bg-white p-3 rounded-2xl shadow-[0_10px_30px_rgba(0,33,87,0.1)] border border-slate-100">
-                <img 
-                  src={qrUrl} 
-                  alt="Validation QR" 
-                  className="w-24 h-24" 
-                  crossOrigin="anonymous"
-                  loading="eager"
-                />
-              </div>
+              {scanActive ? (
+                <>
+                  <div className="absolute inset-0 bg-assirou-navy opacity-0 group-hover/qr:opacity-5 transition-opacity rounded-2xl"></div>
+                  <div className="bg-white p-3 rounded-2xl shadow-[0_10px_30px_rgba(0,33,87,0.1)] border border-slate-100">
+                    <img 
+                      src={qrUrl} 
+                      alt="Validation QR" 
+                      className="w-24 h-24" 
+                      crossOrigin="anonymous"
+                      loading="eager"
+                    />
+                  </div>
+                </>
+              ) : (
+                <div className="w-24 h-24 bg-slate-50 border border-slate-100 rounded-2xl flex flex-col items-center justify-center text-slate-300">
+                   <i className="fas fa-qrcode-slash text-2xl mb-1"></i>
+                   <span className="text-[8px] font-black uppercase text-center leading-tight">Scan<br/>Désactivé</span>
+                </div>
+              )}
             </div>
           </div>
         </div>

@@ -1,12 +1,13 @@
 
 import React, { useState, useEffect, useCallback } from 'react';
-import { getParticipants, isRegistrationActive, setRegistrationStatus, exportParticipantsToCSV, deleteParticipant, subscribeToParticipants, supabase } from '../utils/storage';
+import { getParticipants, isRegistrationActive, setRegistrationStatus, isScanSystemActive, setScanSystemStatus, exportParticipantsToCSV, deleteParticipant, subscribeToParticipants, supabase } from '../utils/storage';
 import { Participant } from '../types';
 import { sendConfirmationEmail, openMailClient } from '../services/mailService';
 
 const AdminDashboard: React.FC = () => {
   const [participants, setParticipants] = useState<Participant[]>([]);
   const [active, setActive] = useState(true);
+  const [scanActive, setScanActive] = useState(true);
   const [search, setSearch] = useState('');
   const [selected, setSelected] = useState<Participant | null>(null);
   const [loading, setLoading] = useState(true);
@@ -14,8 +15,10 @@ const AdminDashboard: React.FC = () => {
   const loadData = useCallback(async () => {
     const data = await getParticipants();
     const status = await isRegistrationActive();
+    const sActive = await isScanSystemActive();
     setParticipants(data);
     setActive(status);
+    setScanActive(sActive);
     setLoading(false);
   }, []);
 
@@ -49,6 +52,12 @@ const AdminDashboard: React.FC = () => {
     loadData();
   };
 
+  const toggleScanSystem = async () => {
+    const next = !scanActive;
+    await setScanSystemStatus(next);
+    setScanActive(next);
+  };
+
   const filtered = participants.filter(p => 
     p.nom_complet.toLowerCase().includes(search.toLowerCase()) || 
     p.numero_ticket.includes(search)
@@ -64,21 +73,29 @@ const AdminDashboard: React.FC = () => {
             <h1 className="text-3xl font-black uppercase tracking-tighter">Forum <span className="text-assirou-gold">2026</span></h1>
             <p className="text-slate-400 text-[10px] font-bold uppercase tracking-widest mt-1">Gestion des Inscriptions</p>
           </div>
-          <div className="flex gap-4 mt-6 lg:mt-0">
+          <div className="flex flex-wrap gap-4 mt-6 lg:mt-0 justify-center">
             <button onClick={exportParticipantsToCSV} className="px-6 py-3 bg-white/10 rounded-xl text-[10px] font-black uppercase hover:bg-assirou-gold hover:text-navy transition-all border border-white/5">Exporter CSV</button>
-            <button onClick={async () => { const s = !active; await setRegistrationStatus(s); setActive(s); }} className={`px-6 py-3 rounded-xl text-[10px] font-black uppercase shadow-lg transition-all ${active ? 'bg-green-600' : 'bg-red-600'}`}>Portail {active ? 'Ouvert' : 'Fermé'}</button>
+            <button onClick={async () => { const s = !active; await setRegistrationStatus(s); setActive(s); }} className={`px-6 py-3 rounded-xl text-[10px] font-black uppercase shadow-lg transition-all ${active ? 'bg-green-600' : 'bg-red-600'}`}>Inscriptions {active ? 'Ouvertes' : 'Fermées'}</button>
+            <button onClick={toggleScanSystem} className={`px-6 py-3 rounded-xl text-[10px] font-black uppercase shadow-lg transition-all ${scanActive ? 'bg-assirou-gold text-assirou-navy' : 'bg-slate-700 text-slate-300'}`}>Système Scan {scanActive ? 'Activé' : 'Désactivé'}</button>
           </div>
         </div>
 
         {/* LISTE PARTICIPANTS */}
         <div className="bg-white/5 border border-white/10 rounded-[2.5rem] overflow-hidden backdrop-blur-md">
-          <div className="p-6 border-b border-white/5 bg-white/[0.02]">
+          <div className="p-6 border-b border-white/5 bg-white/[0.02] flex flex-col md:flex-row gap-4 items-center justify-between">
             <input 
               placeholder="Chercher un nom ou numéro de ticket..." 
               className="w-full md:w-96 bg-white/5 border border-white/10 rounded-xl px-6 py-4 outline-none focus:border-assirou-gold transition-all text-sm font-medium" 
               value={search} 
               onChange={e => setSearch(e.target.value)} 
             />
+            <div className="flex items-center gap-6">
+               <div className="flex items-center gap-2">
+                 <span className="w-3 h-3 rounded-full bg-green-500"></span>
+                 <span className="text-[10px] font-black uppercase tracking-widest">Validés: {participants.filter(p => p.scan_valide).length}</span>
+               </div>
+               <div className="text-[10px] font-black uppercase tracking-widest text-slate-400">Total: {participants.length}</div>
+            </div>
           </div>
           
           <div className="overflow-x-auto">
@@ -87,7 +104,8 @@ const AdminDashboard: React.FC = () => {
                 <tr className="text-[9px] font-black text-slate-500 uppercase tracking-widest border-b border-white/5">
                   <th className="px-8 py-6">Participant & Ticket</th>
                   <th className="px-8 py-6">Profil</th>
-                  <th className="px-8 py-6">Statut Mail</th>
+                  <th className="px-8 py-6">Scan Statut</th>
+                  <th className="px-8 py-6">Mail</th>
                   <th className="px-8 py-6 text-right">Actions</th>
                 </tr>
               </thead>
@@ -102,6 +120,18 @@ const AdminDashboard: React.FC = () => {
                       <span className="text-[9px] font-black text-slate-400 bg-white/5 px-2 py-1 rounded border border-white/5 uppercase tracking-wider">{p.participation}</span>
                     </td>
                     <td className="px-8 py-6">
+                      {p.scan_valide ? (
+                        <div className="flex flex-col">
+                          <span className="text-[9px] font-black text-green-400 bg-green-400/10 border border-green-400/20 px-2 py-1 rounded w-fit uppercase tracking-widest">
+                            <i className="fas fa-check-double mr-1"></i> Pass Validé
+                          </span>
+                          <span className="text-[8px] text-slate-500 mt-1 uppercase font-bold">{new Date(p.date_validation!).toLocaleDateString()} {new Date(p.date_validation!).toLocaleTimeString()}</span>
+                        </div>
+                      ) : (
+                        <span className="text-[9px] font-black text-slate-500 bg-white/5 px-2 py-1 rounded border border-white/5 uppercase tracking-widest">En attente</span>
+                      )}
+                    </td>
+                    <td className="px-8 py-6">
                       <div className="flex items-center gap-3">
                         <span className={`text-[8px] font-black uppercase px-2 py-1 rounded border ${
                           p.statut_email === 'sent' ? 'bg-green-500/10 text-green-400 border-green-500/20' : 
@@ -110,9 +140,6 @@ const AdminDashboard: React.FC = () => {
                         }`}>
                           {p.statut_email}
                         </span>
-                        {p.statut_email !== 'sent' && (
-                          <button onClick={() => handleResendMail(p)} className="text-[9px] font-black text-assirou-gold hover:underline">Renvoyer</button>
-                        )}
                       </div>
                     </td>
                     <td className="px-8 py-6 text-right space-x-2">
@@ -155,10 +182,11 @@ const AdminDashboard: React.FC = () => {
                   </div>
                 </div>
                 <div>
-                  <label className="text-[9px] uppercase font-black text-slate-500 block mb-3 tracking-widest">Avis sur le thème</label>
-                  <p className="text-xs italic text-slate-400 leading-relaxed font-medium bg-white/5 p-4 rounded-2xl border border-white/5">
-                    "{selected.avis_theme || 'Aucun avis laissé'}"
-                  </p>
+                  <label className="text-[9px] uppercase font-black text-slate-500 block mb-3 tracking-widest">Validation de Scan</label>
+                  <div className={`p-4 rounded-2xl border ${selected.scan_valide ? 'bg-green-500/10 border-green-500/20 text-green-400' : 'bg-white/5 border-white/5 text-slate-400'}`}>
+                    <p className="text-xs font-black uppercase tracking-widest mb-1">{selected.scan_valide ? '✅ Ticket Déjà Scanné' : '⌛ Pas encore scanné'}</p>
+                    {selected.scan_valide && <p className="text-[10px] font-bold">Le {new Date(selected.date_validation!).toLocaleString()}</p>}
+                  </div>
                 </div>
               </div>
 
@@ -180,7 +208,7 @@ const AdminDashboard: React.FC = () => {
             </div>
 
             <div className="mt-14 flex flex-col sm:flex-row gap-4 border-t border-white/5 pt-10">
-              <button onClick={() => { openMailClient(selected); setSelected(null); }} className="flex-1 bg-assirou-gold text-navy py-5 rounded-2xl font-black text-[11px] uppercase tracking-widest hover:brightness-110 transition-all shadow-xl">Mail Manuel</button>
+              <button onClick={() => { handleResendMail(selected); setSelected(null); }} className="flex-1 bg-assirou-gold text-navy py-5 rounded-2xl font-black text-[11px] uppercase tracking-widest hover:brightness-110 transition-all shadow-xl">Renvoyer Pass</button>
               <button onClick={() => { handleDelete(selected.id, selected.nom_complet); }} className="flex-1 bg-red-600/20 text-red-500 py-5 rounded-2xl font-black text-[11px] uppercase tracking-widest border border-red-600/20 hover:bg-red-600 hover:text-white transition-all">Supprimer</button>
               <button onClick={() => setSelected(null)} className="flex-1 bg-white/10 py-5 rounded-2xl font-black text-[11px] uppercase tracking-widest hover:bg-white/20 transition-all">Fermer</button>
             </div>
