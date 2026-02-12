@@ -23,7 +23,7 @@ export default defineConfig({
         manualChunks: {
           'react-vendor': ['react', 'react-dom', 'react-router-dom'],
           'supabase-vendor': ['@supabase/supabase-js'],
-          'ui-vendor': ['qrcode.react', 'html-to-image', 'jspdf']
+          'ui-vendor': ['qrcode.react', 'react-barcode', 'html-to-image', 'jspdf']
         }
       }
     }
