@@ -17,6 +17,7 @@ const TicketView: React.FC = () => {
     const load = async () => {
       if (!ticketId) return;
       setLoading(true);
+      // On tente de récupérer le participant
       const found = await getParticipantByTicket(ticketId);
       setParticipant(found);
       setLoading(false);
@@ -28,19 +29,24 @@ const TicketView: React.FC = () => {
     const node = document.getElementById('badge-capture');
     if (!node) return;
     setDownloading(true);
+    
+    // On attend un petit délai pour être sûr que les images externes (QR) sont rendues
+    await new Promise(resolve => setTimeout(resolve, 500));
+
     try {
       const dataUrl = await toPng(node, { 
         quality: 1, 
-        pixelRatio: 3,
+        pixelRatio: 4, // Augmenté pour une netteté maximale
         backgroundColor: '#ffffff',
-        style: { borderRadius: '0' } // Pour une image nette
+        cacheBust: true,
       });
       const link = document.createElement('a');
       link.download = `badge-assirou-${participant?.numero_ticket}.png`;
       link.href = dataUrl;
       link.click();
     } catch (err) {
-      console.error(err);
+      console.error("Erreur téléchargement image:", err);
+      alert("Erreur lors de la génération de l'image. Veuillez réessayer.");
     } finally {
       setDownloading(false);
     }
@@ -50,8 +56,11 @@ const TicketView: React.FC = () => {
     const node = document.getElementById('badge-capture');
     if (!node) return;
     setDownloading(true);
+    
+    await new Promise(resolve => setTimeout(resolve, 500));
+
     try {
-      const dataUrl = await toPng(node, { quality: 1, pixelRatio: 2 });
+      const dataUrl = await toPng(node, { quality: 1, pixelRatio: 2, cacheBust: true });
       const pdf = new jsPDF('p', 'mm', 'a4');
       const imgProps = pdf.getImageProperties(dataUrl);
       const pdfWidth = pdf.internal.pageSize.getWidth();
@@ -60,7 +69,7 @@ const TicketView: React.FC = () => {
       pdf.addImage(dataUrl, 'PNG', 0, 0, pdfWidth, pdfHeight);
       pdf.save(`pass-officiel-${participant?.numero_ticket}.pdf`);
     } catch (err) {
-      console.error(err);
+      console.error("Erreur téléchargement PDF:", err);
     } finally {
       setDownloading(false);
     }
@@ -79,14 +88,26 @@ const TicketView: React.FC = () => {
 
   if (!participant) {
     return (
-      <div className="min-h-screen flex flex-col items-center justify-center p-8 bg-red-50 text-center">
-        <div className="bg-white p-14 rounded-[4rem] shadow-2xl border border-red-100 max-w-md">
-          <div className="w-24 h-24 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-8">
-            <i className="fas fa-times-circle text-5xl text-red-500"></i>
+      <div className="min-h-screen flex flex-col items-center justify-center p-6 bg-[#FFF5F5] font-sans">
+        <div className="bg-white p-12 md:p-20 rounded-[4rem] shadow-[0_20px_60px_rgba(0,0,0,0.05)] border border-slate-100 max-w-lg w-full text-center flex flex-col items-center animate-in zoom-in duration-500">
+          <div className="w-32 h-32 bg-[#FFEBEC] rounded-full flex items-center justify-center mb-12">
+            <div className="w-16 h-16 bg-[#D32F2F] rounded-full flex items-center justify-center text-white shadow-lg">
+              <i className="fas fa-times text-3xl"></i>
+            </div>
           </div>
-          <h2 className="text-3xl font-black text-red-900 uppercase tracking-tighter leading-none mb-4">Pass Invalide</h2>
-          <p className="text-red-700/60 text-sm font-medium italic mb-12">Ce ticket n'existe pas ou a été révoqué.</p>
-          <Link to="/" className="inline-block w-full px-8 py-5 bg-red-900 text-white rounded-2xl font-black uppercase text-[10px] tracking-widest shadow-xl">Retour à l'accueil</Link>
+          
+          <h2 className="text-5xl font-black text-[#6B1414] uppercase tracking-tighter leading-none mb-6">Pass Invalide</h2>
+          
+          <p className="text-[#A35D5D] text-lg font-medium italic mb-16 max-w-xs leading-snug">
+            Ce ticket n'existe pas ou a été révoqué.
+          </p>
+          
+          <Link 
+            to="/" 
+            className="w-full py-6 bg-[#7B1717] text-white rounded-[2rem] font-black uppercase text-sm tracking-widest shadow-[0_10px_30px_rgba(123,23,23,0.3)] hover:bg-[#5A1111] transition-all transform hover:scale-105 active:scale-95"
+          >
+            Retour à l'accueil
+          </Link>
         </div>
       </div>
     );

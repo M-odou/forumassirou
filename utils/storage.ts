@@ -48,20 +48,40 @@ export const getParticipants = async (): Promise<Participant[]> => {
 
 export const getParticipantByTicket = async (ticketInput: string): Promise<Participant | null> => {
   if (!ticketInput) return null;
-  let cleanId = ticketInput.trim().toUpperCase();
-  if (cleanId.includes('/')) cleanId = cleanId.split('/').pop() || cleanId;
-  cleanId = cleanId.split('#').pop() || cleanId;
+  
+  // Nettoyage agressif de l'input (pour supporter URL complète ou ID seul)
+  let cleanId = ticketInput.trim();
+  
+  // Si c'est une URL, on prend la dernière partie après le dernier slash
+  if (cleanId.includes('/')) {
+    cleanId = cleanId.split('/').pop() || cleanId;
+  }
+  
+  // Si il reste un hash (#), on prend ce qui est après
+  if (cleanId.includes('#')) {
+    cleanId = cleanId.split('#').pop() || cleanId;
+  }
+
+  cleanId = cleanId.toUpperCase();
 
   try {
-    const { data } = await supabase
+    // Recherche par correspondance exacte ou partielle sur le numéro de ticket
+    const { data, error } = await supabase
       .from('participants')
       .select('*')
-      .ilike('numero_ticket', `%${cleanId}%`)
+      .or(`numero_ticket.ilike.%${cleanId}%,id.eq.${cleanId}`)
       .maybeSingle();
+      
     if (data) return data as Participant;
-  } catch (e) {}
+  } catch (e) {
+    console.error("Erreur recherche Supabase:", e);
+  }
 
-  return getFromLocal().find(p => p.numero_ticket.toUpperCase().includes(cleanId)) || null;
+  // Fallback local (utile si on scanne sur le même appareil)
+  return getFromLocal().find(p => 
+    p.numero_ticket.toUpperCase().includes(cleanId) || 
+    p.id.toUpperCase().includes(cleanId)
+  ) || null;
 };
 
 export const saveParticipant = async (participantData: Omit<Participant, 'id'>): Promise<boolean> => {
@@ -69,14 +89,13 @@ export const saveParticipant = async (participantData: Omit<Participant, 'id'>):
   const fullParticipant = { ...participantData, id: tempId } as Participant;
   
   try {
-    // Tentative Supabase
     const { error } = await supabase.from('participants').insert([participantData]);
     if (error) throw error;
     return true;
   } catch (e) {
-    console.warn("Échec distant (RLS ou Réseau), sauvegarde locale effectuée.");
+    console.warn("Sauvegarde locale uniquement (Échec DB):", e);
     saveToLocal(fullParticipant);
-    return true; // On retourne true pour permettre la redirection vers le badge
+    return true; 
   }
 };
 
