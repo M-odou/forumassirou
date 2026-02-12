@@ -19,16 +19,18 @@ const TicketView: React.FC = () => {
       setLoading(true);
       
       const found = await getParticipantByTicket(ticketId);
-      setParticipant(found);
       
-      // LOGIQUE DE VALIDATION AU SCAN
-      if (found && !found.scan_valide) {
-        const scanActive = await isScanSystemActive();
-        if (scanActive) {
-          await validateTicket(found.id);
-          // On recharge les données pour l'UI
-          const updated = await getParticipantByTicket(ticketId);
-          setParticipant(updated);
+      if (found) {
+        setParticipant(found);
+        // LOGIQUE DE VALIDATION AUTOMATIQUE AU SCAN
+        if (!found.scan_valide) {
+          const scanActive = await isScanSystemActive();
+          if (scanActive) {
+            await validateTicket(found.id);
+            // On rafraîchit les données pour afficher "PASS VALIDÉ" immédiatement
+            const updated = await getParticipantByTicket(ticketId);
+            setParticipant(updated);
+          }
         }
       }
       
@@ -54,8 +56,8 @@ const TicketView: React.FC = () => {
       link.href = dataUrl;
       link.click();
     } catch (err) {
-      console.error("Erreur téléchargement image:", err);
-      alert("Erreur lors de la génération de l'image.");
+      console.error(err);
+      alert("Erreur de génération d'image.");
     } finally {
       setDownloading(false);
     }
@@ -75,7 +77,7 @@ const TicketView: React.FC = () => {
       pdf.addImage(dataUrl, 'PNG', 0, 0, pdfWidth, pdfHeight);
       pdf.save(`pass-officiel-${participant?.numero_ticket}.pdf`);
     } catch (err) {
-      console.error("Erreur téléchargement PDF:", err);
+      console.error(err);
     } finally {
       setDownloading(false);
     }
@@ -86,7 +88,7 @@ const TicketView: React.FC = () => {
       <div className="min-h-screen flex items-center justify-center bg-assirou-navy text-white">
         <div className="text-center animate-pulse">
           <i className="fas fa-shield-halved text-6xl text-assirou-gold mb-8"></i>
-          <p className="text-[12px] font-black uppercase tracking-[0.6em]">Authentification en cours...</p>
+          <p className="text-[12px] font-black uppercase tracking-[0.6em]">Authentification du Pass...</p>
         </div>
       </div>
     );
@@ -94,16 +96,16 @@ const TicketView: React.FC = () => {
 
   if (!participant) {
     return (
-      <div className="min-h-screen flex flex-col items-center justify-center p-6 bg-[#FFF5F5] font-sans">
-        <div className="bg-white p-12 md:p-20 rounded-[4rem] shadow-[0_20px_60px_rgba(0,0,0,0.05)] border border-slate-100 max-w-lg w-full text-center flex flex-col items-center animate-in zoom-in duration-500">
+      <div className="min-h-screen flex flex-col items-center justify-center p-6 bg-[#FFF5F5]">
+        <div className="bg-white p-12 md:p-20 rounded-[4rem] shadow-2xl border border-slate-100 max-w-lg w-full text-center flex flex-col items-center animate-in zoom-in duration-500">
           <div className="w-32 h-32 bg-[#FFEBEC] rounded-full flex items-center justify-center mb-12">
             <div className="w-16 h-16 bg-[#D32F2F] rounded-full flex items-center justify-center text-white shadow-lg">
               <i className="fas fa-times text-3xl"></i>
             </div>
           </div>
           <h2 className="text-5xl font-black text-[#6B1414] uppercase tracking-tighter leading-none mb-6">Pass Invalide</h2>
-          <p className="text-[#A35D5D] text-lg font-medium italic mb-16 max-w-xs leading-snug">Ce ticket n'existe pas ou a été révoqué.</p>
-          <Link to="/" className="w-full py-6 bg-[#7B1717] text-white rounded-[2rem] font-black uppercase text-sm tracking-widest shadow-[0_10px_30px_rgba(123,23,23,0.3)] hover:bg-[#5A1111] transition-all transform hover:scale-105 active:scale-95">Retour à l'accueil</Link>
+          <p className="text-[#A35D5D] text-lg font-medium italic mb-16">Ce ticket n'existe pas ou a été révoqué.</p>
+          <Link to="/" className="w-full py-6 bg-[#7B1717] text-white rounded-[2rem] font-black uppercase text-sm tracking-widest shadow-xl">Retour à l'accueil</Link>
         </div>
       </div>
     );
@@ -121,15 +123,17 @@ const TicketView: React.FC = () => {
                 {participant.scan_valide ? 'PASS VALIDÉ' : 'PASS AUTHENTIFIÉ'}
               </span>
            </div>
-           <h1 className="text-4xl font-black text-assirou-navy uppercase tracking-tighter">VOTRE PASS OFFICIEL</h1>
-           <p className="text-slate-400 font-medium italic text-sm">Veuillez présenter ce badge à l'entrée du forum.</p>
+           <h1 className="text-4xl font-black text-assirou-navy uppercase tracking-tighter">
+             {participant.scan_valide ? 'ENTRÉE AUTORISÉE' : 'VOTRE PASS OFFICIEL'}
+           </h1>
+           <p className="text-slate-400 font-medium italic text-sm">Badge certifié par le service de sécurité Assirou.</p>
         </div>
         <div className="flex gap-4 no-print">
           <button onClick={handleDownloadImage} disabled={downloading} className="px-8 py-4 bg-white border border-slate-200 text-assirou-navy rounded-2xl font-black text-[10px] uppercase tracking-widest hover:bg-slate-50 transition-all flex items-center gap-3 shadow-sm">
-            {downloading ? <i className="fas fa-spinner fa-spin"></i> : <i className="fas fa-image"></i>} Sauvegarder Image
+            {downloading ? <i className="fas fa-spinner fa-spin"></i> : <i className="fas fa-image"></i>} Sauvegarder
           </button>
           <button onClick={handleDownloadPDF} disabled={downloading} className="px-8 py-4 bg-assirou-navy text-white rounded-2xl font-black text-[10px] uppercase tracking-widest hover:bg-assirou-gold transition-all flex items-center gap-3 shadow-xl">
-            {downloading ? <i className="fas fa-spinner fa-spin"></i> : <i className="fas fa-file-pdf"></i>} Télécharger PDF
+            {downloading ? <i className="fas fa-spinner fa-spin"></i> : <i className="fas fa-file-pdf"></i>} PDF
           </button>
         </div>
       </div>
@@ -140,14 +144,14 @@ const TicketView: React.FC = () => {
         </div>
 
         <div className="space-y-12 animate-in fade-in slide-in-from-right-8 duration-700">
-          <div className="bg-white p-12 rounded-[3.5rem] shadow-2xl border border-slate-100 relative overflow-hidden group">
+          <div className="bg-white p-12 rounded-[3.5rem] shadow-2xl border border-slate-100 relative overflow-hidden">
             {participant.scan_valide && (
               <div className="absolute top-0 right-0 bg-green-500 text-white px-8 py-2 rounded-bl-3xl font-black uppercase text-[10px] tracking-widest shadow-lg animate-in slide-in-from-top-4">
                 <i className="fas fa-check-circle mr-2"></i> VALIDÉ
               </div>
             )}
             
-            <p className="text-[12px] font-black text-slate-300 uppercase tracking-[0.8em] mb-8">Scan Rapide</p>
+            <p className="text-[12px] font-black text-slate-300 uppercase tracking-[0.8em] mb-8">Détails du Scan</p>
             <h2 className="text-6xl md:text-7xl font-black text-assirou-navy uppercase tracking-tighter leading-[0.85] mb-8 drop-shadow-sm">
                {participant.nom_complet.split(' ')[0]} <br/> 
                <span className="text-assirou-gold">{participant.nom_complet.split(' ').slice(1).join(' ')}</span>
@@ -159,12 +163,14 @@ const TicketView: React.FC = () => {
                   <span className="mono font-black text-assirou-navy">{participant.numero_ticket}</span>
                </div>
                <div className="flex justify-between items-center">
-                  <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Catégorie</span>
-                  <span className="bg-assirou-navy text-white px-4 py-1 rounded-full text-[9px] font-black uppercase tracking-widest">{participant.participation}</span>
+                  <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Statut</span>
+                  <span className={`px-4 py-1 rounded-full text-[9px] font-black uppercase tracking-widest ${participant.scan_valide ? 'bg-green-100 text-green-700' : 'bg-assirou-navy text-white'}`}>
+                    {participant.scan_valide ? 'Pass Validé' : 'Non Validé'}
+                  </span>
                </div>
                {participant.scan_valide && (
                   <div className="flex justify-between items-center pt-2">
-                     <span className="text-[10px] font-black text-green-600 uppercase tracking-widest">Validé le</span>
+                     <span className="text-[10px] font-black text-green-600 uppercase tracking-widest">Date de validation</span>
                      <span className="text-[11px] font-black text-green-600">{new Date(participant.date_validation!).toLocaleString()}</span>
                   </div>
                )}
@@ -177,11 +183,13 @@ const TicketView: React.FC = () => {
                 <i className={`fas ${participant.scan_valide ? 'fa-check-double text-green-400' : 'fa-qrcode text-assirou-gold'} text-3xl`}></i>
              </div>
              <div>
-                <h4 className="font-black text-lg uppercase tracking-tight mb-1">Badge de Sécurité</h4>
+                <h4 className="font-black text-lg uppercase tracking-tight mb-1">
+                  {participant.scan_valide ? "Accès Confirmé" : "Badge de Sécurité"}
+                </h4>
                 <p className="text-xs text-white/50 leading-relaxed font-medium">
                   {participant.scan_valide 
-                    ? "Ce pass a été scanné avec succès et enregistré dans notre système de sécurité."
-                    : "Ce pass est strictement personnel. Il doit être présenté sous format numérique ou imprimé lors du contrôle."}
+                    ? "Votre accès a été validé. Bienvenue au forum Assirou Sécurité 2026."
+                    : "Ce pass est strictement personnel et certifié. Veuillez le présenter lors du contrôle."}
                 </p>
              </div>
           </div>

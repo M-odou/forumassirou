@@ -18,6 +18,7 @@ const TicketCard: React.FC<TicketCardProps> = ({ participant }) => {
   const cleanBase = baseUrl.endsWith('/') ? baseUrl.slice(0, -1) : baseUrl;
   const validationUrl = `${cleanBase}/#/ticket/${participant.numero_ticket}`;
   
+  // Correction QR : Utilisation d'une URL de base propre et paramètre CORS
   const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=400x400&data=${encodeURIComponent(validationUrl)}&color=002157&bgcolor=ffffff&qzone=1&ecc=H`;
 
   return (
@@ -45,7 +46,6 @@ const TicketCard: React.FC<TicketCardProps> = ({ participant }) => {
                 Forum Métiers <br/><span className="text-assirou-gold">Sécurité 2026</span>
               </h2>
             </div>
-
             <div className="w-14 h-11 bg-gradient-to-br from-yellow-300 via-yellow-600 to-yellow-800 rounded-lg shadow-inner relative overflow-hidden border border-white/20">
                <div className="absolute inset-0 grid grid-cols-3 grid-rows-3 opacity-30">
                  {[...Array(9)].map((_, i) => <div key={i} className="border border-black/20"></div>)}
@@ -57,7 +57,7 @@ const TicketCard: React.FC<TicketCardProps> = ({ participant }) => {
 
         <div className="p-10 pt-12 relative">
           <div className="absolute top-0 right-10 -translate-y-1/2 bg-white px-6 py-2 rounded-full shadow-lg border border-slate-50 flex items-center gap-2">
-             <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse"></div>
+             <div className={`w-2 h-2 rounded-full ${participant.scan_valide ? 'bg-green-500' : 'bg-assirou-gold'} animate-pulse`}></div>
              <span className="text-[10px] font-black uppercase tracking-widest text-assirou-navy">{participant.participation}</span>
           </div>
 
@@ -67,7 +67,6 @@ const TicketCard: React.FC<TicketCardProps> = ({ participant }) => {
               {participant.nom_complet}
             </h3>
             <p className="text-assirou-gold text-xs font-black uppercase tracking-widest">{participant.organisation_entreprise || 'Participant Individuel'}</p>
-            <p className="text-slate-400 text-[10px] font-bold uppercase mt-1 tracking-widest">{participant.fonction || 'Visiteur'}</p>
           </div>
 
           <div className="flex items-center gap-4 mb-10">
@@ -80,12 +79,10 @@ const TicketCard: React.FC<TicketCardProps> = ({ participant }) => {
             <div>
               <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">Session</p>
               <p className="text-sm font-black text-assirou-navy uppercase">05 MARS 2026</p>
-              <p className="text-[10px] font-bold text-slate-400 uppercase">10:00 — 16:00 GMT</p>
             </div>
             <div className="text-right">
               <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">Zone</p>
               <p className="text-sm font-black text-assirou-navy uppercase">CSC THIAROYE</p>
-              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-tighter">SUR MER, SÉNÉGAL</p>
             </div>
           </div>
 
@@ -99,7 +96,7 @@ const TicketCard: React.FC<TicketCardProps> = ({ participant }) => {
                 <i className={`fas ${participant.scan_valide ? 'fa-check-double text-green-500' : 'fa-check-circle text-slate-200'} text-lg`}></i>
                 <div className="leading-none">
                   <span className={`block text-[8px] font-black uppercase tracking-widest ${participant.scan_valide ? 'text-green-600' : 'text-assirou-navy'}`}>
-                    {participant.scan_valide ? 'Pass Déjà Validé' : 'Identité Certifiée'}
+                    {participant.scan_valide ? 'PASS VALIDÉ' : 'Identité Certifiée'}
                   </span>
                   <span className="block text-[7px] font-bold text-slate-400 uppercase">Système Assirou 2.0</span>
                 </div>
@@ -108,22 +105,19 @@ const TicketCard: React.FC<TicketCardProps> = ({ participant }) => {
 
             <div className="relative group/qr">
               {scanActive ? (
-                <>
-                  <div className="absolute inset-0 bg-assirou-navy opacity-0 group-hover/qr:opacity-5 transition-opacity rounded-2xl"></div>
-                  <div className="bg-white p-3 rounded-2xl shadow-[0_10px_30px_rgba(0,33,87,0.1)] border border-slate-100">
-                    <img 
-                      src={qrUrl} 
-                      alt="Validation QR" 
-                      className="w-24 h-24" 
-                      crossOrigin="anonymous"
-                      loading="eager"
-                    />
-                  </div>
-                </>
+                <div className="bg-white p-3 rounded-2xl shadow-xl border border-slate-100">
+                  <img 
+                    src={qrUrl} 
+                    alt="Validation QR" 
+                    className="w-24 h-24" 
+                    crossOrigin="anonymous" 
+                    loading="eager"
+                  />
+                </div>
               ) : (
                 <div className="w-24 h-24 bg-slate-50 border border-slate-100 rounded-2xl flex flex-col items-center justify-center text-slate-300">
                    <i className="fas fa-qrcode-slash text-2xl mb-1"></i>
-                   <span className="text-[8px] font-black uppercase text-center leading-tight">Scan<br/>Désactivé</span>
+                   <span className="text-[8px] font-black uppercase text-center">Scan<br/>Désactivé</span>
                 </div>
               )}
             </div>
@@ -132,8 +126,7 @@ const TicketCard: React.FC<TicketCardProps> = ({ participant }) => {
 
         <div className="h-6 bg-assirou-navy flex items-center justify-center relative overflow-hidden">
           <div className="absolute inset-0 opacity-40 bg-[url('https://www.transparenttextures.com/patterns/carbon-fibre.png')]"></div>
-          <p className="relative z-10 text-[8px] font-black text-white/40 uppercase tracking-[1.5em] ml-4">CONFIDENTIEL • SÉCURITÉ PRIVÉE • CONFIDENTIEL</p>
-          <div className="absolute right-0 top-0 bottom-0 w-24 bg-assirou-gold/80 skew-x-[30deg] translate-x-12"></div>
+          <p className="relative z-10 text-[8px] font-black text-white/40 uppercase tracking-[1.5em] ml-4">CONFIDENTIEL • ASSIROU SÉCURITÉ</p>
         </div>
       </div>
     </div>
