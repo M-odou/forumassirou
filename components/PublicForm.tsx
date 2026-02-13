@@ -15,6 +15,7 @@ const PublicForm: React.FC = () => {
   const navigate = useNavigate();
   const [step, setStep] = useState(1);
   const [loading, setLoading] = useState(false);
+  const [initialLoading, setInitialLoading] = useState(true);
   const [isActive, setIsActive] = useState(true);
   const [confirmed, setConfirmed] = useState(false);
   
@@ -36,7 +37,17 @@ const PublicForm: React.FC = () => {
   });
 
   useEffect(() => {
-    isRegistrationActive().then(setIsActive).catch(() => setIsActive(true));
+    const checkStatus = async () => {
+      try {
+        const active = await isRegistrationActive();
+        setIsActive(active);
+      } catch (e) {
+        setIsActive(true); // Par défaut on laisse ouvert si erreur
+      } finally {
+        setInitialLoading(false);
+      }
+    };
+    checkStatus();
   }, []);
 
   const nextStep = () => {
@@ -92,9 +103,22 @@ const PublicForm: React.FC = () => {
     } catch (error) {
       console.error("Submit error:", error);
       setLoading(false);
-      navigate(`/ticket/${formData.numero_ticket || 'FORUM-2026'}`);
+      alert("Une erreur est survenue lors de l'enregistrement. Veuillez réessayer.");
     }
   };
+
+  if (initialLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-assirou-navy">
+        <div className="text-center">
+          <div className="w-16 h-16 bg-assirou-gold rounded-2xl flex items-center justify-center mx-auto mb-6 animate-bounce shadow-2xl">
+            <span className="text-assirou-navy font-black text-2xl">AS</span>
+          </div>
+          <p className="text-white text-[10px] font-black uppercase tracking-[0.5em] animate-pulse">Initialisation...</p>
+        </div>
+      </div>
+    );
+  }
 
   if (!isActive) {
     return (
@@ -209,7 +233,7 @@ const PublicForm: React.FC = () => {
               </div>
             )}
 
-            {/* ÉTAPE 3 : VISION & BESOINS AMÉLIORÉE */}
+            {/* ÉTAPE 3 : VISION & BESOINS */}
             {step === 3 && (
               <div className="space-y-12 animate-in zoom-in-95 duration-700">
                 <div className="space-y-3 text-center">
@@ -224,7 +248,6 @@ const PublicForm: React.FC = () => {
                   </div>
 
                   <div className="space-y-12">
-                    {/* SECTION FORMATIONS */}
                     <div className="space-y-6">
                       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
                         <label className="text-[11px] font-black uppercase text-assirou-navy tracking-widest">Souhaitez-vous suivre une formation spécifique ?</label>
@@ -246,7 +269,6 @@ const PublicForm: React.FC = () => {
                       )}
                     </div>
 
-                    {/* SECTION SERVICES */}
                     <div className="space-y-6 border-t border-slate-100 pt-10">
                       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
                         <label className="text-[11px] font-black uppercase text-assirou-navy tracking-widest">Êtes-vous intéressé par nos services de sécurité ?</label>

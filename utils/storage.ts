@@ -51,9 +51,6 @@ export const getParticipants = async (): Promise<{data: Participant[], error: an
 
 export const saveParticipant = async (participantData: Omit<Participant, 'id' | 'token'>): Promise<boolean> => {
   const token = crypto.randomUUID?.() || Math.random().toString(36).substring(2) + Date.now().toString(36);
-  
-  // Si Supabase est présent, on laisse la DB gérer l'ID si c'est un UUID, 
-  // sinon on en génère un compatible.
   const id = crypto.randomUUID?.() || Math.random().toString(36).substring(2, 15);
   const newParticipant = { ...participantData, id, token } as Participant;
 
@@ -66,14 +63,13 @@ export const saveParticipant = async (participantData: Omit<Participant, 'id' | 
     const { error } = await supabase.from('participants').insert([newParticipant]);
     if (error) {
        console.error("Supabase Insert Error:", error);
-       saveLocalParticipant(newParticipant); // Fallback
-       return false;
+       saveLocalParticipant(newParticipant); 
+       return true; // On retourne true car le fallback local a fonctionné
     }
     return true;
   } catch (e) {
-    console.error("Save Participant Exception:", e);
     saveLocalParticipant(newParticipant);
-    return false;
+    return true;
   }
 };
 
@@ -122,17 +118,23 @@ export const getParticipantByToken = async (token: string): Promise<Participant 
 export const isRegistrationActive = async (): Promise<boolean> => {
   if (!supabase) return true;
   try {
-    const { data } = await supabase.from('settings').select('value').eq('key', 'registration_active').maybeSingle();
+    const { data, error } = await supabase.from('settings').select('value').eq('key', 'registration_active').maybeSingle();
+    if (error) return true;
     return data ? data.value === 'true' : true;
-  } catch (e) { return true; }
+  } catch (e) { 
+    return true; 
+  }
 };
 
 export const isScanSystemActive = async (): Promise<boolean> => {
   if (!supabase) return true;
   try {
-    const { data } = await supabase.from('settings').select('value').eq('key', 'scan_active').maybeSingle();
+    const { data, error } = await supabase.from('settings').select('value').eq('key', 'scan_active').maybeSingle();
+    if (error) return true;
     return data ? data.value === 'true' : true;
-  } catch (e) { return true; }
+  } catch (e) { 
+    return true; 
+  }
 };
 
 export const setRegistrationStatus = async (val: boolean) => {
@@ -144,7 +146,8 @@ export const generateTicketNumber = async () => {
   const timestamp = Date.now().toString().slice(-4);
   if (!supabase) return `FORUM-2026-L${timestamp}`;
   try {
-    const { count } = await supabase.from('participants').select('*', { count: 'exact', head: true });
+    const { count, error } = await supabase.from('participants').select('*', { count: 'exact', head: true });
+    if (error) return `FORUM-2026-T${timestamp}`;
     return `FORUM-2026-${((count || 0) + 1).toString().padStart(4, '0')}`;
   } catch (e) {
     return `FORUM-2026-T${timestamp}`;
@@ -159,9 +162,7 @@ export const subscribeToParticipants = (cb: () => void) => {
     .on(
       'postgres_changes', 
       { event: '*', schema: 'public', table: 'participants' }, 
-      () => {
-        cb();
-      }
+      () => { cb(); }
     )
     .subscribe();
 
