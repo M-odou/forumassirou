@@ -3,17 +3,11 @@ import { createClient, SupabaseClient } from '@supabase/supabase-js';
 import { Participant } from '../types';
 
 const supabaseUrl = process.env.SUPABASE_URL || '';
-const supabaseAnonKey = process.env.SUPABASE_ANON_KEY || 'sb_publishable_s9PMYRnHvoweVPk0MLT2Lg_g6qWGroq';
+const supabaseAnonKey = process.env.SUPABASE_ANON_KEY || '';
 
 // Initialisation sécurisée du client Supabase
 export const supabase: SupabaseClient | null = (supabaseUrl && supabaseUrl.startsWith('http'))
-  ? createClient(supabaseUrl, supabaseAnonKey, {
-      realtime: {
-        params: {
-          eventsPerSecond: 10,
-        },
-      },
-    })
+  ? createClient(supabaseUrl, supabaseAnonKey)
   : null;
 
 const LOCAL_STORAGE_KEY = 'forum_participants_backup';
@@ -29,8 +23,8 @@ const saveLocalParticipant = (participant: Participant) => {
   localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(participants));
 };
 
-export const getParticipants = async (): Promise<Participant[]> => {
-  if (!supabase) return getLocalParticipants();
+export const getParticipants = async (): Promise<{data: Participant[], error: any}> => {
+  if (!supabase) return { data: getLocalParticipants(), error: 'Mode Local Storage (Supabase non configuré)' };
   
   try {
     const { data, error } = await supabase
@@ -39,26 +33,31 @@ export const getParticipants = async (): Promise<Participant[]> => {
       .order('date_inscription', { ascending: false });
     
     if (error) throw error;
-    return (data || []).map(p => ({
+    
+    const formatted = (data || []).map(p => ({
       ...p,
       canal_forum: p.canal_forum || [],
       canal_assirou: p.canal_assirou || [],
       type_formation: p.type_formation || [],
       services_interesses: p.services_interesses || []
     }));
-  } catch (e) {
-    console.warn("Supabase Fetch failed, using local data", e);
-    return getLocalParticipants();
+    
+    return { data: formatted, error: null };
+  } catch (e: any) {
+    console.error("Supabase Fetch Error:", e);
+    return { data: getLocalParticipants(), error: e.message || e };
   }
 };
 
 export const saveParticipant = async (participantData: Omit<Participant, 'id' | 'token'>): Promise<boolean> => {
   const token = crypto.randomUUID?.() || Math.random().toString(36).substring(2) + Date.now().toString(36);
-  const id = Math.random().toString(36).substring(2, 15);
+  
+  // Si Supabase est présent, on laisse la DB gérer l'ID si c'est un UUID, 
+  // sinon on en génère un compatible.
+  const id = crypto.randomUUID?.() || Math.random().toString(36).substring(2, 15);
   const newParticipant = { ...participantData, id, token } as Participant;
 
   if (!supabase) {
-    console.warn("Cloud non configuré : Sauvegarde locale uniquement.");
     saveLocalParticipant(newParticipant);
     return true;
   }
@@ -66,14 +65,15 @@ export const saveParticipant = async (participantData: Omit<Participant, 'id' | 
   try {
     const { error } = await supabase.from('participants').insert([newParticipant]);
     if (error) {
-       console.error("Erreur insertion Cloud, repli local:", error);
-       saveLocalParticipant(newParticipant);
-       return true;
+       console.error("Supabase Insert Error:", error);
+       saveLocalParticipant(newParticipant); // Fallback
+       return false;
     }
     return true;
   } catch (e) {
+    console.error("Save Participant Exception:", e);
     saveLocalParticipant(newParticipant);
-    return true;
+    return false;
   }
 };
 
@@ -113,7 +113,6 @@ export const getParticipantByTicket = async (ticket: string): Promise<Participan
   return data || getLocalParticipants().find(p => p.numero_ticket === ticket) || null;
 };
 
-// Fix: Add getParticipantByToken as requested by components/ScanPage.tsx
 export const getParticipantByToken = async (token: string): Promise<Participant | null> => {
   if (!supabase) return getLocalParticipants().find(p => p.token === token) || null;
   const { data } = await supabase.from('participants').select('*').eq('token', token).maybeSingle();
@@ -128,7 +127,6 @@ export const isRegistrationActive = async (): Promise<boolean> => {
   } catch (e) { return true; }
 };
 
-// Fix: Add isScanSystemActive as requested by components/ScanPage.tsx and components/TicketView.tsx
 export const isScanSystemActive = async (): Promise<boolean> => {
   if (!supabase) return true;
   try {
@@ -153,32 +151,25 @@ export const generateTicketNumber = async () => {
   }
 };
 
-/**
- * Souscription Realtime optimisée
- * IMPORTANT: Assurez-vous d'activer le Realtime sur la table 'participants' dans le dashboard Supabase.
- */
 export const subscribeToParticipants = (cb: () => void) => {
   if (!supabase) return null;
   
   const channel = supabase
-    .channel('realtime_participants')
+    .channel('public:participants')
     .on(
       'postgres_changes', 
       { event: '*', schema: 'public', table: 'participants' }, 
-      (payload) => {
-        console.log('Changement détecté en temps réel:', payload);
+      () => {
         cb();
       }
     )
-    .subscribe((status) => {
-      console.log('Statut de la souscription Realtime:', status);
-    });
+    .subscribe();
 
   return channel;
 };
 
 export const exportParticipantsToCSV = async () => {
-  const data = await getParticipants();
+  const { data } = await getParticipants();
   const headers = ["Nom", "Email", "Tel", "Orga", "Participation", "Ticket", "Date"];
   const rows = data.map(p => [
     `"${p.nom_complet}"`, 

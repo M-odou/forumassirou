@@ -11,21 +11,23 @@ const AdminDashboard: React.FC = () => {
   const [selected, setSelected] = useState<Participant | null>(null);
   const [loading, setLoading] = useState(true);
   const [realtimeStatus, setRealtimeStatus] = useState<'connecting' | 'online' | 'offline'>('connecting');
-  const [dbError, setDbError] = useState<string | null>(null);
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
   const refreshData = useCallback(async () => {
     setLoading(true);
-    try {
-      const data = await getParticipants();
-      setParticipants(data);
-      const regStatus = await isRegistrationActive();
-      setActive(regStatus);
-      setDbError(null);
-    } catch (e: any) {
-      setDbError("Erreur lors de la récupération des données.");
-    } finally {
-      setLoading(false);
+    const { data, error } = await getParticipants();
+    if (error && typeof error === 'string' && error.includes('401')) {
+      setErrorMsg("Erreur d'authentification (401). Vérifiez vos clés API Supabase ou vos politiques RLS.");
+    } else if (error) {
+      setErrorMsg(String(error));
+    } else {
+      setErrorMsg(null);
     }
+    setParticipants(data);
+    
+    const regStatus = await isRegistrationActive();
+    setActive(regStatus);
+    setLoading(false);
   }, []);
 
   useEffect(() => {
@@ -35,12 +37,10 @@ const AdminDashboard: React.FC = () => {
     if (supabase) {
       setRealtimeStatus('connecting');
       channel = subscribeToParticipants(() => {
-        console.log("Mise à jour reçue via Realtime !");
         refreshData();
       });
 
-      // Simulation du statut online après un court délai
-      const timer = setTimeout(() => setRealtimeStatus('online'), 1500);
+      const timer = setTimeout(() => setRealtimeStatus('online'), 1000);
       return () => {
         clearTimeout(timer);
         if (channel) supabase.removeChannel(channel);
@@ -81,14 +81,13 @@ const AdminDashboard: React.FC = () => {
             <div className="flex items-center gap-3 mb-2">
               <h1 className="text-3xl font-black uppercase tracking-tighter">Gestion <span className="text-assirou-gold">Participants</span></h1>
               
-              {/* Badge Realtime Statut */}
               <div className={`flex items-center gap-2 px-3 py-1 rounded-full border text-[8px] font-black uppercase ${
                 realtimeStatus === 'online' ? 'bg-green-500/10 text-green-500 border-green-500/20' : 
                 realtimeStatus === 'connecting' ? 'bg-yellow-500/10 text-yellow-500 border-yellow-500/20' : 
                 'bg-red-500/10 text-red-500 border-red-500/20'
               }`}>
                 <span className={`w-1.5 h-1.5 rounded-full ${realtimeStatus === 'online' ? 'bg-green-500 animate-pulse' : 'bg-current'}`}></span>
-                {realtimeStatus === 'online' ? 'Synchronisation Active' : realtimeStatus === 'connecting' ? 'Connexion...' : 'Mode Hors-Ligne'}
+                {realtimeStatus === 'online' ? 'Temps Réel Actif' : realtimeStatus === 'connecting' ? 'Connexion...' : 'Mode Hors-Ligne'}
               </div>
             </div>
             <p className="text-slate-500 text-xs font-bold uppercase tracking-widest pl-1">Forum Sécurité 2026 - Administration</p>
@@ -110,13 +109,18 @@ const AdminDashboard: React.FC = () => {
           </div>
         </div>
 
-        {/* Message d'alerte si pas de Supabase */}
-        {!supabase && (
-          <div className="bg-orange-500/10 border border-orange-500/20 p-6 rounded-3xl flex items-center gap-4 text-orange-200">
-             <i className="fas fa-exclamation-triangle text-xl"></i>
-             <p className="text-xs font-bold uppercase tracking-wide">
-               Attention : L'application utilise le stockage local. Les inscriptions réalisées sur d'autres appareils ne seront pas visibles ici. Configurez Supabase pour le Cloud.
-             </p>
+        {/* Message d'erreur détaillé */}
+        {errorMsg && (
+          <div className="bg-red-500/10 border border-red-500/20 p-6 rounded-[2rem] flex flex-col md:flex-row items-center gap-6 animate-in slide-in-from-top duration-500">
+             <div className="w-12 h-12 bg-red-500 rounded-2xl flex items-center justify-center text-white shrink-0">
+               <i className="fas fa-exclamation-triangle text-xl"></i>
+             </div>
+             <div>
+               <p className="text-xs font-black uppercase text-red-400 tracking-widest mb-1">Diagnostic du Système</p>
+               <p className="text-sm font-bold text-white leading-relaxed">{errorMsg}</p>
+               <p className="text-[10px] text-slate-400 mt-2 italic">Si ce message persiste, vérifiez que votre table 'participants' existe sur Supabase et que le Realtime est activé.</p>
+             </div>
+             <button onClick={refreshData} className="md:ml-auto px-6 py-2 bg-red-500 text-white rounded-xl text-[10px] font-black uppercase tracking-widest hover:brightness-110 transition-all">Réessayer</button>
           </div>
         )}
 
@@ -155,7 +159,7 @@ const AdminDashboard: React.FC = () => {
                 </tr>
               </thead>
               <tbody className="divide-y divide-white/5">
-                {filtered.map(p => (
+                {filtered.length > 0 ? filtered.map(p => (
                   <tr key={p.id} className="group hover:bg-white/[0.03] transition-colors">
                     <td className="px-10 py-6">
                       <div className="flex flex-col">
@@ -197,7 +201,13 @@ const AdminDashboard: React.FC = () => {
                       </div>
                     </td>
                   </tr>
-                ))}
+                )) : (
+                  <tr>
+                    <td colSpan={5} className="px-10 py-20 text-center text-slate-500 uppercase font-black text-xs tracking-widest">
+                      {loading ? 'Chargement...' : 'Aucun inscrit trouvé'}
+                    </td>
+                  </tr>
+                )}
               </tbody>
             </table>
           </div>
@@ -228,7 +238,7 @@ const AdminDashboard: React.FC = () => {
                       <p className="text-sm font-bold text-white uppercase">{selected.organisation_entreprise || 'Particulier'}</p>
                       <p className="text-xs text-slate-400 uppercase">{selected.fonction}</p>
                    </div>
-                   <div className="space-y-2 pb-4 border-b border-white/5">
+                   <div className="space-y-2">
                       <p className="text-[9px] font-black text-slate-500 uppercase tracking-widest">Type de participation</p>
                       <p className="text-sm font-bold text-white uppercase">{selected.participation}</p>
                    </div>
@@ -241,13 +251,13 @@ const AdminDashboard: React.FC = () => {
                          <div>
                             <p className="text-[10px] font-bold text-slate-500 uppercase mb-2">Formations ({selected.souhait_formation})</p>
                             <div className="flex flex-wrap gap-2">
-                               {selected.type_formation.map(t => <span key={t} className="px-2 py-1 bg-white/5 rounded-lg text-[9px] font-bold text-slate-300 border border-white/5">{t}</span>)}
+                               {selected.type_formation?.map(t => <span key={t} className="px-2 py-1 bg-white/5 rounded-lg text-[9px] font-bold text-slate-300 border border-white/5">{t}</span>)}
                             </div>
                          </div>
                          <div>
                             <p className="text-[10px] font-bold text-slate-500 uppercase mb-2">Services ({selected.interet_services})</p>
                             <div className="flex flex-wrap gap-2">
-                               {selected.services_interesses.map(s => <span key={s} className="px-2 py-1 bg-white/5 rounded-lg text-[9px] font-bold text-slate-300 border border-white/5">{s}</span>)}
+                               {selected.services_interesses?.map(s => <span key={s} className="px-2 py-1 bg-white/5 rounded-lg text-[9px] font-bold text-slate-300 border border-white/5">{s}</span>)}
                             </div>
                          </div>
                       </div>
