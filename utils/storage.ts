@@ -2,25 +2,28 @@
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
 import { Participant } from '../types';
 
-// Récupération sécurisée des variables d'environnement
+// Récupération des variables d'environnement
+// Nous utilisons la clé que vous avez fournie comme fallback
 const supabaseUrl = process.env.SUPABASE_URL || '';
-const supabaseAnonKey = process.env.SUPABASE_ANON_KEY || '';
+const supabaseAnonKey = process.env.SUPABASE_ANON_KEY || 'sb_publishable_s9PMYRnHvoweVPk0MLT2Lg_g6qWGroq';
 
-// Initialisation sécurisée : On ne crée le client que si les clés sont valides
-// Cela évite l'erreur "supabaseUrl is required"
-export const supabase: SupabaseClient | null = (supabaseUrl && supabaseAnonKey && supabaseUrl.startsWith('http'))
+/**
+ * Initialisation sécurisée du client Supabase.
+ * On vérifie que l'URL est présente pour éviter l'erreur "supabaseUrl is required".
+ */
+export const supabase: SupabaseClient | null = (supabaseUrl && supabaseUrl.startsWith('http'))
   ? createClient(supabaseUrl, supabaseAnonKey)
   : null;
 
 if (!supabase) {
-  console.warn("ATTENTION : Les identifiants Supabase sont manquants ou invalides. L'application est en attente de configuration.");
+  console.warn("CONFIGURATION MANQUANTE : L'URL Supabase n'est pas configurée. L'application fonctionne en mode limité.");
 }
 
 /**
- * PRODUCTION : Récupère les participants exclusivement depuis le Cloud.
+ * Récupère les participants exclusivement depuis Supabase (Mode Production).
  */
 export const getParticipants = async (): Promise<Participant[]> => {
-  if (!supabase) throw new Error("Base de données non connectée.");
+  if (!supabase) throw new Error("URL Supabase manquante dans les variables d'environnement.");
   
   try {
     const { data, error } = await supabase
@@ -40,13 +43,13 @@ export const getParticipants = async (): Promise<Participant[]> => {
       numero_ticket: p.numero_ticket || 'SANS-TICKET'
     }));
   } catch (e) {
-    console.error("Production Fetch Error:", e);
+    console.error("Fetch Error:", e);
     throw e;
   }
 };
 
 /**
- * Enregistre un participant directement en base de données.
+ * Enregistre un participant.
  */
 export const saveParticipant = async (participantData: Omit<Participant, 'id' | 'token'>): Promise<boolean> => {
   if (!supabase) return false;
@@ -59,28 +62,20 @@ export const saveParticipant = async (participantData: Omit<Participant, 'id' | 
     if (error) throw error;
     return true;
   } catch (e) {
-    console.error("Production Save Error:", e);
     return false;
   }
 };
 
-/**
- * Supprime un participant (Direct Production).
- */
 export const deleteParticipant = async (id: string): Promise<boolean> => {
   if (!supabase) return false;
   try {
     const { error } = await supabase.from('participants').delete().eq('id', id);
-    if (error) throw error;
-    return true;
+    return !error;
   } catch (e) {
     return false;
   }
 };
 
-/**
- * Valide un ticket (Direct Production).
- */
 export const validateTicket = async (id: string): Promise<boolean> => {
   if (!supabase) return false;
   const now = new Date().toISOString();
@@ -89,36 +84,24 @@ export const validateTicket = async (id: string): Promise<boolean> => {
       .from('participants')
       .update({ scan_valide: true, date_validation: now })
       .eq('id', id);
-    if (error) throw error;
-    return true;
+    return !error;
   } catch (e) {
     return false;
   }
 };
 
-/**
- * Recherche un participant par son token (QR Code).
- */
 export const getParticipantByToken = async (token: string): Promise<Participant | null> => {
   if (!supabase) return null;
-  const { data, error } = await supabase.from('participants').select('*').eq('token', token).maybeSingle();
-  if (error) return null;
+  const { data } = await supabase.from('participants').select('*').eq('token', token).maybeSingle();
   return data;
 };
 
-/**
- * Recherche un participant par son numéro de ticket.
- */
 export const getParticipantByTicket = async (ticket: string): Promise<Participant | null> => {
   if (!supabase) return null;
-  const { data, error } = await supabase.from('participants').select('*').eq('numero_ticket', ticket).maybeSingle();
-  if (error) return null;
+  const { data } = await supabase.from('participants').select('*').eq('numero_ticket', ticket).maybeSingle();
   return data;
 };
 
-/**
- * Statut des inscriptions.
- */
 export const isRegistrationActive = async (): Promise<boolean> => {
   if (!supabase) return true;
   try {
@@ -129,9 +112,6 @@ export const isRegistrationActive = async (): Promise<boolean> => {
   }
 };
 
-/**
- * Statut du système de scan.
- */
 export const isScanSystemActive = async (): Promise<boolean> => {
   if (!supabase) return true;
   try {
@@ -142,27 +122,18 @@ export const isScanSystemActive = async (): Promise<boolean> => {
   }
 };
 
-/**
- * Mise à jour administrative du statut.
- */
 export const setRegistrationStatus = async (val: boolean) => {
   if (!supabase) return;
   await supabase.from('settings').upsert({ key: 'registration_active', value: val.toString() });
 };
 
-/**
- * Génération de ticket basée sur le compte réel.
- */
 export const generateTicketNumber = async () => {
-  if (!supabase) return `FORUM-OFFLINE-${Date.now()}`;
+  if (!supabase) return `FORUM-DEMO-${Date.now()}`;
   const { count } = await supabase.from('participants').select('*', { count: 'exact', head: true });
   const next = (count || 0) + 1;
   return `FORUM-SEC-2026-${next.toString().padStart(4, '0')}`;
 };
 
-/**
- * Abonnement Realtime.
- */
 export const subscribeToParticipants = (cb: () => void) => {
   if (!supabase) return null;
   return supabase
@@ -171,9 +142,6 @@ export const subscribeToParticipants = (cb: () => void) => {
     .subscribe();
 };
 
-/**
- * Export CSV.
- */
 export const exportParticipantsToCSV = async () => {
   const data = await getParticipants();
   const headers = ["Nom", "Email", "Tel", "Orga", "Type", "Ticket", "Date", "Statut"];
