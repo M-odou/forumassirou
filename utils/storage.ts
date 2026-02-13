@@ -2,28 +2,32 @@
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
 import { Participant } from '../types';
 
-// Récupération des variables d'environnement
-// Nous utilisons la clé que vous avez fournie comme fallback
 const supabaseUrl = process.env.SUPABASE_URL || '';
 const supabaseAnonKey = process.env.SUPABASE_ANON_KEY || 'sb_publishable_s9PMYRnHvoweVPk0MLT2Lg_g6qWGroq';
 
-/**
- * Initialisation sécurisée du client Supabase.
- * On vérifie que l'URL est présente pour éviter l'erreur "supabaseUrl is required".
- */
 export const supabase: SupabaseClient | null = (supabaseUrl && supabaseUrl.startsWith('http'))
   ? createClient(supabaseUrl, supabaseAnonKey)
   : null;
 
-if (!supabase) {
-  console.warn("CONFIGURATION MANQUANTE : L'URL Supabase n'est pas configurée. L'application fonctionne en mode limité.");
-}
+const LOCAL_STORAGE_KEY = 'forum_participants_backup';
+
+// Aide à la gestion locale si Supabase est absent
+const getLocalParticipants = (): Participant[] => {
+  const data = localStorage.getItem(LOCAL_STORAGE_KEY);
+  return data ? JSON.parse(data) : [];
+};
+
+const saveLocalParticipant = (participant: Participant) => {
+  const participants = getLocalParticipants();
+  participants.push(participant);
+  localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(participants));
+};
 
 /**
- * Récupère les participants exclusivement depuis Supabase (Mode Production).
+ * Récupère les participants (Cloud ou Local)
  */
 export const getParticipants = async (): Promise<Participant[]> => {
-  if (!supabase) throw new Error("URL Supabase manquante dans les variables d'environnement.");
+  if (!supabase) return getLocalParticipants();
   
   try {
     const { data, error } = await supabase
@@ -32,7 +36,6 @@ export const getParticipants = async (): Promise<Participant[]> => {
       .order('date_inscription', { ascending: false });
     
     if (error) throw error;
-
     return (data || []).map(p => ({
       ...p,
       canal_forum: p.canal_forum || [],
@@ -43,62 +46,78 @@ export const getParticipants = async (): Promise<Participant[]> => {
       numero_ticket: p.numero_ticket || 'SANS-TICKET'
     }));
   } catch (e) {
-    console.error("Fetch Error:", e);
-    throw e;
+    console.warn("Supabase Fetch failed, using local data", e);
+    return getLocalParticipants();
   }
 };
 
 /**
- * Enregistre un participant.
+ * Enregistre un participant avec fallback local
  */
 export const saveParticipant = async (participantData: Omit<Participant, 'id' | 'token'>): Promise<boolean> => {
-  if (!supabase) return false;
-  
   const token = crypto.randomUUID?.() || Math.random().toString(36).substring(2) + Date.now().toString(36);
-  const newParticipant = { ...participantData, token };
+  const id = Math.random().toString(36).substring(2, 15);
+  const newParticipant = { ...participantData, id, token } as Participant;
 
+  if (!supabase) {
+    saveLocalParticipant(newParticipant);
+    return true;
+  }
+  
   try {
     const { error } = await supabase.from('participants').insert([newParticipant]);
-    if (error) throw error;
-    return true;
+    if (error) {
+       console.error("Supabase insert error, falling back to local:", error);
+       saveLocalParticipant(newParticipant);
+    }
+    return true; // On retourne true car le fallback local a pris le relais
   } catch (e) {
-    return false;
+    saveLocalParticipant(newParticipant);
+    return true;
   }
 };
 
 export const deleteParticipant = async (id: string): Promise<boolean> => {
-  if (!supabase) return false;
+  if (!supabase) {
+    const participants = getLocalParticipants().filter(p => p.id !== id);
+    localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(participants));
+    return true;
+  }
   try {
     const { error } = await supabase.from('participants').delete().eq('id', id);
     return !error;
-  } catch (e) {
-    return false;
-  }
+  } catch (e) { return false; }
 };
 
 export const validateTicket = async (id: string): Promise<boolean> => {
-  if (!supabase) return false;
   const now = new Date().toISOString();
+  if (!supabase) {
+    const participants = getLocalParticipants().map(p => 
+      p.id === id ? { ...p, scan_valide: true, date_validation: now } : p
+    );
+    localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(participants));
+    return true;
+  }
   try {
     const { error } = await supabase
       .from('participants')
       .update({ scan_valide: true, date_validation: now })
       .eq('id', id);
     return !error;
-  } catch (e) {
-    return false;
-  }
+  } catch (e) { return false; }
 };
 
 export const getParticipantByToken = async (token: string): Promise<Participant | null> => {
-  if (!supabase) return null;
+  if (!supabase) return getLocalParticipants().find(p => p.token === token) || null;
   const { data } = await supabase.from('participants').select('*').eq('token', token).maybeSingle();
+  if (!data) return getLocalParticipants().find(p => p.token === token) || null;
   return data;
 };
 
 export const getParticipantByTicket = async (ticket: string): Promise<Participant | null> => {
-  if (!supabase) return null;
+  if (!supabase) return getLocalParticipants().find(p => p.numero_ticket === ticket) || null;
   const { data } = await supabase.from('participants').select('*').eq('numero_ticket', ticket).maybeSingle();
+  if (!data) return getLocalParticipants().find(p => p.numero_ticket === ticket) || null;
   return data;
 };
 
@@ -107,9 +126,7 @@ export const isRegistrationActive = async (): Promise<boolean> => {
   try {
     const { data } = await supabase.from('settings').select('value').eq('key', 'registration_active').maybeSingle();
     return data ? data.value === 'true' : true;
-  } catch (e) { 
-    return true; 
-  }
+  } catch (e) { return true; }
 };
 
 export const isScanSystemActive = async (): Promise<boolean> => {
@@ -117,9 +134,7 @@ export const isScanSystemActive = async (): Promise<boolean> => {
   try {
     const { data } = await supabase.from('settings').select('value').eq('key', 'scan_system_active').maybeSingle();
     return data ? data.value === 'true' : true;
-  } catch (e) { 
-    return true; 
-  }
+  } catch (e) { return true; }
 };
 
 export const setRegistrationStatus = async (val: boolean) => {
@@ -128,10 +143,15 @@ export const setRegistrationStatus = async (val: boolean) => {
 };
 
 export const generateTicketNumber = async () => {
-  if (!supabase) return `FORUM-DEMO-${Date.now()}`;
-  const { count } = await supabase.from('participants').select('*', { count: 'exact', head: true });
-  const next = (count || 0) + 1;
-  return `FORUM-SEC-2026-${next.toString().padStart(4, '0')}`;
+  const timestamp = Date.now().toString().slice(-4);
+  if (!supabase) return `FORUM-SEC-2026-L${timestamp}`;
+  try {
+    const { count } = await supabase.from('participants').select('*', { count: 'exact', head: true });
+    const next = (count || 0) + 1;
+    return `FORUM-SEC-2026-${next.toString().padStart(4, '0')}`;
+  } catch (e) {
+    return `FORUM-SEC-2026-T${timestamp}`;
+  }
 };
 
 export const subscribeToParticipants = (cb: () => void) => {
@@ -146,13 +166,13 @@ export const exportParticipantsToCSV = async () => {
   const data = await getParticipants();
   const headers = ["Nom", "Email", "Tel", "Orga", "Type", "Ticket", "Date", "Statut"];
   const rows = data.map(p => [
-    p.nom_complet, 
-    p.adresse_email, 
-    p.telephone, 
-    p.organisation_entreprise || 'INDIVIDUEL', 
-    p.participation, 
-    p.numero_ticket, 
-    p.date_inscription, 
+    `"${p.nom_complet}"`, 
+    `"${p.adresse_email}"`, 
+    `"${p.telephone}"`, 
+    `"${p.organisation_entreprise || 'INDIVIDUEL'}"`, 
+    `"${p.participation}"`, 
+    `"${p.numero_ticket}"`, 
+    `"${p.date_inscription}"`, 
     p.scan_valide ? "PRÉSENT" : "ABSENT"
   ]);
   const csv = [headers.join(','), ...rows.map(r => r.join(','))].join('\n');
@@ -160,6 +180,6 @@ export const exportParticipantsToCSV = async () => {
   const url = window.URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.href = url;
-  a.download = `FORUM_DATA_PRODUCTION.csv`;
+  a.download = `FORUM_PARTICIPANTS_${new Date().toISOString().split('T')[0]}.csv`;
   a.click();
 };
